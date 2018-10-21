@@ -1,17 +1,43 @@
 <template>
   <div id="app">
-    <img alt="Vue logo" src="./assets/logo.png">
-    <HelloWorld msg="Welcome to Your Vue.js App"/>
+    <div id="chart-container">
+      <organization-chart :datasource="datasource"></organization-chart>
+    </div>
   </div>
 </template>
 
 <script>
-import HelloWorld from './components/HelloWorld.vue'
+import OrganizationChart from './components/OrganizationChart.vue'
 
 export default {
   name: 'app',
   components: {
-    HelloWorld
+    OrganizationChart
+  },
+  data: function () {
+    return {
+      datasource: {
+        'id': '1',
+        'name': 'Lao Lao',
+        'title': 'general manager',
+        'children': [
+          { 'id': '2', 'name': 'Bo Miao', 'title': 'department manager' },
+          { 'id': '3', 'name': 'Su Miao', 'title': 'department manager',
+            'children': [
+              { 'id': '4', 'name': 'Tie Hua', 'title': 'senior engineer' },
+              { 'id': '5', 'name': 'Hei Hei', 'title': 'senior engineer',
+                'children': [
+                  { 'id': '6', 'name': 'Pang Pang', 'title': 'engineer' },
+                  { 'id': '7', 'name': 'Xiang Xiang', 'title': 'UE engineer' }
+                ]
+               }
+             ]
+           },
+          { 'id': '8', 'name': 'Hong Miao', 'title': 'department manager' },
+          { 'id': '9', 'name': 'Chun Miao', 'title': 'department manager' }
+        ]
+      }
+    }
   }
 }
 </script>
@@ -23,6 +49,15 @@ export default {
   -moz-osx-font-smoothing: grayscale;
   text-align: center;
   color: #2c3e50;
-  margin-top: 60px;
+}
+#chart-container {
+  position: relative;
+  display: inline-block;
+  height: 420px;
+  width: calc(100% - 24px);
+  border: 2px dashed #aaa;
+  border-radius: 5px;
+  overflow: auto;
+  text-align: center;
 }
 </style>
