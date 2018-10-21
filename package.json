@@ -1,12 +1,17 @@
 {
-  "name": "vue-orgchart",
+  "name": "@dabeng/vue-orgchart",
   "version": "0.1.0",
-  "private": true,
   "scripts": {
     "serve": "vue-cli-service serve",
     "build": "vue-cli-service build",
+    "build-component": "vue-cli-service build --target lib --name orgchart ./src/components/index.js",
     "lint": "vue-cli-service lint"
   },
+  "mian": "./dist/orgchart.common.js",
+  "files": [
+    "dist",
+    "src"
+  ],
   "dependencies": {
     "vue": "^2.5.17"
   },
