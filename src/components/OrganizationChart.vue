@@ -1,18 +1,20 @@
 <template>
   <div class="orgchart">
-      <organization-chart-tree :datasource="datasource"></organization-chart-tree>
+      <!-- <organization-chart-tree :datasource="datasource"></organization-chart-tree> -->
+      <h1>testing</h1>
   </div>
 </template>
 
 <script>
-import OrganizationChartTree from "./OrganizationChartTree";
+// import OrganizationChartTree from "./OrganizationChartTree";
 
 export default {
+  name: 'VueOrganizationChart',
   props: {
-    datasource: Object
+    // datasource: Object
   },
   components: {
-    OrganizationChartTree
+    // OrganizationChartTree
   }
 };
 </script>

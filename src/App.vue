@@ -1,19 +1,15 @@
 <template>
   <div id="app">
     <div id="chart-container">
-      <organization-chart :datasource="datasource"></organization-chart>
+      <vue-organization-chart></vue-organization-chart>
     </div>
   </div>
 </template>
 
 <script>
-import OrganizationChart from './components/OrganizationChart.vue'
 
 export default {
   name: 'app',
-  components: {
-    OrganizationChart
-  },
   data: function () {
     return {
       datasource: {

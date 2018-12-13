@@ -1,9 +1,5 @@
-import orgchartComponent from './OrganizationChart.vue'
+import VueOrganizationChart from './OrganizationChart';
 
-const OrganizationChart = {
-  install: function (Vue) {
-    Vue.component('OrganizationChart', orgchartComponent)
-  }
-}
+VueOrganizationChart.install = Vue => Vue.component(VueOrganizationChart.name, VueOrganizationChart);
 
-export default OrganizationChart
+export default VueOrganizationChart;
