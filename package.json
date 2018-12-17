@@ -4,10 +4,10 @@
   "scripts": {
     "serve": "vue-cli-service serve",
     "build": "vue-cli-service build",
-    "build-component": "vue-cli-service build --target lib --name vue-organization-chart ./src/index.js",
+    "build-component": "vue-cli-service build --target lib --name orgchart ./src/components/index.js",
     "lint": "vue-cli-service lint"
   },
-  "mian": "./dist/vue-organization-chart.umd.js",
+  "main": "./dist/orgchart.umd.min.js",
   "files": [
     "dist",
     "src"
