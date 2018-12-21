@@ -1,17 +1,32 @@
 {
   "name": "vue-organization-chart",
-  "version": "0.1.17",
+  "version": "1.0.0",
+  "description": "organization chart component based vuejs",
   "scripts": {
     "serve": "vue-cli-service serve",
     "build": "vue-cli-service build",
-    "build-component": "vue-cli-service build --target lib --name vue-organization-chart ./src/index.js",
+    "build-component": "vue-cli-service build --target lib --name orgchart ./src/components/index.js",
     "lint": "vue-cli-service lint"
   },
-  "mian": "./dist/vue-organization-chart.umd.js",
+  "main": "./dist/orgchart.umd.min.js",
   "files": [
-    "dist",
-    "src"
+    "dist"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dabeng/vue-orgchart.git"
+  },
+  "keywords": [
+    "vuejs",
+    "organization",
+    "chart",
+    "orgchart",
+    "tree",
+    "tree-like",
+    "tree-view"
+  ],
+  "author": "dabeng <dabeng413@gmail.com>",
+  "license": "MIT",
   "dependencies": {
     "vue": "^2.5.17"
   },

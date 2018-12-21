@@ -20,7 +20,7 @@
       </tr>
       <tr class="lines">
         <td class="rightLine"></td>
-       <template v-for="i in (datasource.children.length-1)">
+       <template v-for="n in (datasource.children.length-1)">
           <td class="leftLine topLine"></td>
           <td class="rightLine topLine"></td>
        </template>
@@ -37,7 +37,7 @@
 
 <script>
 export default {
-  name: "node",
+  name: 'node',
   props: {
     datasource: Object
   }

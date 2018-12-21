@@ -1,5 +1,7 @@
-import VueOrganizationChart from './OrganizationChart';
+import OrganizationChart from './OrganizationChart.vue'
 
-VueOrganizationChart.install = Vue => Vue.component(VueOrganizationChart.name, VueOrganizationChart);
+OrganizationChart.install = (Vue) => { 
+  Vue.component(OrganizationChart.name, OrganizationChart)
+}
 
-export default VueOrganizationChart;
+export default OrganizationChart

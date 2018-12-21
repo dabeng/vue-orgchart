@@ -1,18 +1,22 @@
 <template>
   <div id="app">
     <div id="chart-container">
-      <vue-organization-chart></vue-organization-chart>
+      <organization-chart :datasource="ds"></organization-chart>
     </div>
   </div>
 </template>
 
 <script>
+import OrganizationChart from './components/OrganizationChart.vue'
 
 export default {
   name: 'app',
-  data: function () {
+  components: {
+    OrganizationChart
+  },
+  data () {
     return {
-      datasource: {
+      ds: {
         'id': '1',
         'name': 'Lao Lao',
         'title': 'general manager',
