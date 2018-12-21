@@ -17,7 +17,7 @@ npm install vue-organization-chart -S
 ```
 
 # Usage
-```
+```html
 <template>
   <div>
     <organization-chart :datasource="ds"></organization-chart>
@@ -28,12 +28,10 @@ npm install vue-organization-chart -S
   import Vue from 'vue'
   import OrganizationChart from 'vue-organization-chart'
   import 'vue-organization-chart/dist/orgchart.css'
-  Vue.use(OrganizationChart)
 
   export default {
-    name: 'HelloWorld',
-    props: {
-      msg: String
+    components: {
+      OrganizationChart
     },
     data () {
       return {
