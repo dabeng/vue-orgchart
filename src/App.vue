@@ -1,18 +1,16 @@
 <template>
   <div id="app">
-    <div id="chart-container">
-      <organization-chart :datasource="ds"></organization-chart>
-    </div>
+    <org-chart :datasource="ds"></org-chart>
   </div>
 </template>
 
 <script>
-import OrganizationChart from './components/OrganizationChart.vue'
+import OrgChart from './components/OrganizationChartContainer.vue'
 
 export default {
   name: 'app',
   components: {
-    OrganizationChart
+    OrgChart
   },
   data () {
     return {
@@ -49,15 +47,5 @@ export default {
   -moz-osx-font-smoothing: grayscale;
   text-align: center;
   color: #2c3e50;
-}
-#chart-container {
-  position: relative;
-  display: inline-block;
-  height: 420px;
-  width: calc(100% - 24px);
-  border: 2px dashed #aaa;
-  border-radius: 5px;
-  overflow: auto;
-  text-align: center;
 }
 </style>

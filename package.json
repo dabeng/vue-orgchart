@@ -1,6 +1,6 @@
 {
   "name": "vue-organization-chart",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "organization chart component based vuejs",
   "scripts": {
     "serve": "vue-cli-service serve",
@@ -28,6 +28,7 @@
   "author": "dabeng <dabeng413@gmail.com>",
   "license": "MIT",
   "dependencies": {
+    "transformation-matrix": "^1.14.1",
     "vue": "^2.5.17"
   },
   "devDependencies": {
