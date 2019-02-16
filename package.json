@@ -28,14 +28,13 @@
   "author": "dabeng <dabeng413@gmail.com>",
   "license": "MIT",
   "dependencies": {
-    "transformation-matrix": "^1.14.1",
+    "jquery": "^3.3.1",
     "vue": "^2.5.17"
   },
   "devDependencies": {
     "@vue/cli-plugin-babel": "^3.0.4",
     "@vue/cli-plugin-eslint": "^3.0.4",
-    "@vue/cli-service": "^3.0.4",
-    "vue-template-compiler": "^2.5.17"
+    "@vue/cli-service": "^3.0.4"
   },
   "eslintConfig": {
     "root": true,
