@@ -1,5 +1,5 @@
 <template>
-  <div
+  <div v-bind="{ scopedSlots: $scopedSlots }"
     class="orgchart-container"
     @wheel="zoom && zoomHandler($event)"
     @mouseup="pan && panning && panEndHandler($event)">
@@ -8,7 +8,11 @@
       :style="{ transform: transformVal, cursor: cursorVal }"
       @mousedown="pan && panStartHandler($event)"
       @mousemove="pan && panning && panHandler($event)">
-      <organization-chart-node :datasource="datasource"></organization-chart-node>
+      <organization-chart-node :datasource="datasource">
+        <template v-for="slot in Object.keys($scopedSlots)" :slot="slot" slot-scope="scope">
+          <slot :name="slot" v-bind="scope"/>
+        </template>
+      </organization-chart-node>
     </div>
   </div>
 </template>

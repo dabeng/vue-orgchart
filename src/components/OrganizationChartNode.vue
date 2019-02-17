@@ -2,14 +2,15 @@
   <table>
     <tr>
      <td :colspan="datasource.children && datasource.children.length ? datasource.children.length*2 : null">
-       <div class="node">
-        <div class="title">
-          <i class="fa fa-users symbol"></i>
-          {{ datasource.name }}
-        </div>
-        <div class="content">{{ datasource.title }}</div>
-        <i class="edge verticalEdge bottomEdge fa"></i>
-        </div>
+      <div class="node">
+        <slot :node-data="datasource">
+          <div class="title">
+            <i class="fa fa-users symbol"></i>
+            {{ datasource.name }}
+          </div>
+          <div class="content">{{ datasource.title }}</div>
+        </slot>
+      </div>
      </td>
     </tr>
     <template v-if="datasource.children && datasource.children.length">
@@ -28,7 +29,11 @@
       </tr>
       <tr class="nodes">
         <td colspan="2" v-for="child in datasource.children" :key="child.id">
-          <node :datasource="child"></node>
+          <node :datasource="child">
+            <template v-for="slot in Object.keys($scopedSlots)" :slot="slot" slot-scope="scope">
+              <slot :name="slot" v-bind="scope"/>
+            </template>
+          </node>
         </td>
       </tr>
     </template>

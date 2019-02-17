@@ -1,6 +1,10 @@
 <template>
   <div id="app">
-    <org-chart :datasource="ds"></org-chart>
+    <org-chart :datasource="ds">
+      <template slot-scope="{ nodeData }">
+        <b @click="selectNode(nodeData)">{{ nodeData.name }}</b>
+      </template>
+    </org-chart>
   </div>
 </template>
 
@@ -35,6 +39,11 @@ export default {
           { 'id': '9', 'name': 'Chun Miao', 'title': 'department manager' }
         ]
       }
+    }
+  },
+  methods: {
+    selectNode (nodeData) {
+      alert('node ' + nodeData.name + ' is selected')
     }
   }
 }
