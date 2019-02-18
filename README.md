@@ -62,3 +62,34 @@ npm install vue-organization-chart -S
   }
 </script>
 ```
+
+# Attributes
+<table>
+  <thead>
+    <tr><th>Name</th><th>Type</th><th>Required</th><th>Default</th><th>Description</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>datasource</td><td>json</td><td>yes</td><td></td><td>datasource usded to build out structure of orgchart. It could be a json object.</td>
+    </tr>
+    <tr>
+      <td>pan</td><td>boolean</td><td>no</td><td>false</td><td>Users could pan the orgchart by mouse drag&drop if they enable this attribute.</td>
+    </tr>
+    <tr>
+      <td>zoom</td><td>boolean</td><td>no</td><td>false</td><td>Users could zoomin/zoomout the orgchart by mouse wheel if they enable this attribute.</td>
+    </tr>
+    <tr>
+      <td>zoominLimit</td><td>number</td><td>no</td><td>7</td><td>Users are allowed to set a zoom-in limit.</td>
+    </tr>
+    <tr>
+      <td>zoomoutLimit</td><td>number</td><td>no</td><td>0.5</td><td>Users are allowed to set a zoom-out limit.</td>
+    </tr>
+  </tbody>
+</table>
+
+# Scoped Slots
+```html
+<template slot-scope="{ nodeData }">
+  <!-- feel free to customize the internal structure of node -->
+</template>
+```

@@ -2,12 +2,14 @@
   <div v-bind="{ scopedSlots: $scopedSlots }"
     class="orgchart-container"
     @wheel="zoom && zoomHandler($event)"
-    @mouseup="pan && panning && panEndHandler($event)">
+    @mouseup="pan && panning && panEndHandler($event)"
+  >
     <div
       class="orgchart"
       :style="{ transform: transformVal, cursor: cursorVal }"
       @mousedown="pan && panStartHandler($event)"
-      @mousemove="pan && panning && panHandler($event)">
+      @mousemove="pan && panning && panHandler($event)"
+    >
       <organization-chart-node :datasource="datasource">
         <template v-for="slot in Object.keys($scopedSlots)" :slot="slot" slot-scope="scope">
           <slot :name="slot" v-bind="scope"/>
@@ -30,13 +32,11 @@ export default {
     },
     pan: {
       type: Boolean,
-      required: false,
-      default: true
+      required: false
     },
     zoom: {
       type: Boolean,
-      required: false,
-      default: true
+      required: false
     },
     zoomoutLimit: {
       type: Number,
