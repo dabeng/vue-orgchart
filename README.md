@@ -15,7 +15,7 @@
 ```
 npm install vue-organization-chart -S
 ```
-# [Demos on CodeSandbox](https://codesandbox.io/s/r5kx493mrp)
+# [Demos](https://codesandbox.io/dashboard/sandboxes/Vue%20OrgChart)
 
 # Usage
 ```html
