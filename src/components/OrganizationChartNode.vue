@@ -2,7 +2,7 @@
   <table>
     <tr>
      <td :colspan="datasource.children && datasource.children.length ? datasource.children.length*2 : null">
-      <div class="node">
+      <div class="node" @click="triggerSelect(datasource)">
         <slot :node-data="datasource">
           <div class="title">
             <i class="fa fa-users symbol"></i>
@@ -45,6 +45,11 @@ export default {
   name: 'node',
   props: {
     datasource: Object
+  },
+  methods: {
+    triggerSelect (data) {
+      this.$emit('select', data)
+    }
   }
 };
 </script>

@@ -1,6 +1,6 @@
 <template>
   <div id="app">
-    <org-chart :datasource="ds">
+    <org-chart :datasource="ds" @select="doSomething">
 <!--       <template slot-scope="{ nodeData }">
         <b @click="selectNode(nodeData)">{{ nodeData.name }}</b>
       </template> -->
@@ -43,6 +43,9 @@ export default {
   },
   methods: {
     selectNode (nodeData) {
+      alert('node ' + nodeData.name + ' is selected')
+    }, 
+    doSomething (nodeData) {
       alert('node ' + nodeData.name + ' is selected')
     }
   }
