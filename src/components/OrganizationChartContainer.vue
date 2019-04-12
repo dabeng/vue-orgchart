@@ -10,7 +10,7 @@
       @mousedown="pan && panStartHandler($event)"
       @mousemove="pan && panning && panHandler($event)"
     >
-      <organization-chart-node :datasource="datasource">
+      <organization-chart-node :datasource="datasource" :handle-click="handleClick">
         <template v-for="slot in Object.keys($scopedSlots)" :slot="slot" slot-scope="scope">
           <slot :name="slot" v-bind="scope"/>
         </template>
@@ -62,6 +62,9 @@ export default {
     OrganizationChartNode
   },
   methods: {
+    handleClick (nodeData) {
+      this.$emit('node-click', nodeData);
+    },
     panEndHandler () {
       this.panning = false
       this.cursorVal = 'default'

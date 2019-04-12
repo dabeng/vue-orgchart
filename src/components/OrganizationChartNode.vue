@@ -2,7 +2,7 @@
   <table>
     <tr>
      <td :colspan="datasource.children && datasource.children.length ? datasource.children.length*2 : null">
-      <div class="node" @click="triggerSelect(datasource)">
+      <div class="node" @click="handleClick(datasource)">
         <slot :node-data="datasource">
           <div class="title">
             <i class="fa fa-users symbol"></i>
@@ -29,7 +29,7 @@
       </tr>
       <tr class="nodes">
         <td colspan="2" v-for="child in datasource.children" :key="child.id">
-          <node :datasource="child">
+          <node :datasource="child" :handle-click="handleClick">
             <template v-for="slot in Object.keys($scopedSlots)" :slot="slot" slot-scope="scope">
               <slot :name="slot" v-bind="scope"/>
             </template>
@@ -44,7 +44,8 @@
 export default {
   name: 'node',
   props: {
-    datasource: Object
+    datasource: Object,
+    handleClick: Function
   },
   methods: {
     triggerSelect (data) {

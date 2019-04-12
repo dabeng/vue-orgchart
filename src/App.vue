@@ -1,6 +1,6 @@
 <template>
   <div id="app">
-    <org-chart :datasource="ds" @select="doSomething">
+    <org-chart :datasource="ds" @node-click="doSomething">
 <!--       <template slot-scope="{ nodeData }">
         <b @click="selectNode(nodeData)">{{ nodeData.name }}</b>
       </template> -->
