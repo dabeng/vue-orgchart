@@ -3,7 +3,7 @@
     <tbody>
       <tr>
        <td :colspan="datasource.children && datasource.children.length ? datasource.children.length*2 : null">
-        <div class="node" @click="handleClick(datasource)">
+        <div class="node" @click.stop="handleClick(datasource)">
           <slot :node-data="datasource">
             <div class="title">
               <i class="fa fa-users symbol"></i>
