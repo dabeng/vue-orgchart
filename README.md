@@ -94,7 +94,7 @@ npm install vue-organization-chart -S
   </thead>
   <tbody>
     <tr>
-      <td>node-click</td><td>json</td><td>triggers when user clicks the node.</td>
+      <td>node-click</td><td>node data</td><td>triggers when user clicks the node.</td>
     </tr>
   </tbody>
 </table>
