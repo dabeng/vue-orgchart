@@ -87,6 +87,18 @@ npm install vue-organization-chart -S
   </tbody>
 </table>
 
+# Events
+<table>
+  <thead>
+    <tr><th>Name</th><th>Parameters</th><th>Description</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>node-click</td><td>json</td><td>triggers when user clicks the node.</td>
+    </tr>
+  </tbody>
+</table>
+
 # Scoped Slots
 ```html
 <template slot-scope="{ nodeData }">
