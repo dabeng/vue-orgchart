@@ -3,7 +3,7 @@
     <tbody>
       <tr>
        <td :colspan="datasource.children && datasource.children.length ? datasource.children.length*2 : null">
-        <div class="node" @click.stop="handleClick(datasource)">
+        <div class="node" :id="datasource.id" @click.stop="handleClick(datasource)">
           <slot :node-data="datasource">
             <div class="title">
               <i class="fa fa-users symbol"></i>
@@ -50,9 +50,6 @@ export default {
     handleClick: Function
   },
   methods: {
-    triggerSelect (data) {
-      this.$emit('select', data)
-    }
   }
 };
 </script>
