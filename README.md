@@ -1,4 +1,4 @@
-![OrgChart](http://dabeng.github.io/OrgChart/img/orgchart-heading.png)
+![OrgChart](http://dabeng.github.io/OrgChart/img/heading.svg)
 
 # [jQuery Version](https://github.com/dabeng/OrgChart)
 # [Native JavaScript(ES6) Version](http://github.com/dabeng/OrgChart.js)
