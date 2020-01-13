@@ -1,8 +1,10 @@
 ![OrgChart](http://dabeng.github.io/OrgChart/img/heading.svg)
 
 # [jQuery Version](https://github.com/dabeng/OrgChart)
-# [Native JavaScript(ES6) Version](http://github.com/dabeng/OrgChart.js)
+# [ES6 Version](http://github.com/dabeng/OrgChart.js)
 # [Web Components Version](http://github.com/dabeng/OrgChart-Webcomponents)
+# [Angular Version -- the most space-saving solution](https://github.com/dabeng/ng-orgchart)
+# [React Version](https://github.com/dabeng/react-orgchart)
 
 ## Foreword
 - First of all, thanks a lot for [wesnolte](https://github.com/wesnolte)'s great work:blush: -- [jOrgChart](https://github.com/wesnolte/jOrgChart). The thought that using nested tables to build out the tree-like orgonization chart is amazing. This idea is more simple and direct than its counterparts based on svg
