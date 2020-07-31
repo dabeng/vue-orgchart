@@ -28,7 +28,7 @@
                         <td class="leftLine topLine"
                             :key="n"></td>
                         <td class="rightLine topLine"
-                            :key="n"></td>
+                            :key="n+datasource.children.length*1"></td>
                     </template>
                     <td class="leftLine"></td>
                 </tr>
