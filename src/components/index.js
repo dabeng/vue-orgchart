@@ -1,7 +1,11 @@
-import OrgChart from './OrganizationChartContainer.vue'
+import ChartComponent from './ChartContainer.vue'
 
-OrgChart.install = (Vue) => { 
-  Vue.component('OrgChart', OrgChart)
-}
+const OrgChart = Object.assign(ChartComponent, {
+  install(app) {
+    app.component('OrgChart', ChartComponent)
+  },
+})
 
 export default OrgChart
+export { OrgChart }
+export { flatToTree, flatToFamily, ulToTree } from './tree'

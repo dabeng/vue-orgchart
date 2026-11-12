@@ -1,0 +1,44 @@
+.oc-shell { --oc-node-width: 168px; --oc-row-height: 72px; --oc-line-color: #96ada6; --oc-hover-color: #e7f4ef; --oc-control-color: #136b5a; --oc-control-hover-color: #d7eee5; --oc-duration: 300ms; position: relative; width: 100%; height: 420px; color: #24372f; }
+.orgchart-container { position: relative; width: 100%; height: 100%; overflow: auto; border: 1px solid #cad6d1; background-color: #f7faf8; background-image: radial-gradient(#d5dfda 1px, transparent 1px); background-size: 16px 16px; box-sizing: border-box; overscroll-behavior: contain; }
+.oc-panning { cursor: grabbing; }
+.oc-scene { position: relative; min-width: 100%; min-height: 100%; }
+.orgchart { --oc-branch-x: 0px; --oc-branch-y: calc(-1 * var(--oc-row-height)); position: relative; transform-origin: 0 0; box-sizing: border-box; user-select: none; }
+.orgchart.b2t { --oc-branch-y: var(--oc-row-height); }
+.orgchart.l2r { --oc-branch-x: calc(-1 * var(--oc-node-width)); --oc-branch-y: 0px; }
+.orgchart.r2l { --oc-branch-x: var(--oc-node-width); --oc-branch-y: 0px; }
+.orgchart .node { position: absolute; box-sizing: border-box; width: var(--oc-node-width); min-height: var(--oc-row-height); background: white; border: 1px solid #b6cac1; border-radius: 6px; text-align: center; transition: left var(--oc-duration) ease, top var(--oc-duration) ease, background-color var(--oc-duration) ease; outline-offset: 4px; }
+.orgchart.oc-relating .node { transition: background-color var(--oc-duration) ease; }
+.orgchart .node:hover, .orgchart .node:focus-within { background: var(--oc-hover-color); border-color: #136b5a; z-index: 2; }
+.orgchart .node.focused { outline: 2px solid #136b5a; z-index: 2; }
+.orgchart .node:focus-visible, .oc-control:focus-visible, .oc-minimap:focus-visible { outline: 2px solid #136b5a; }
+.orgchart .title { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; padding: 6px 10px; box-sizing: border-box; color: white; background: #136b5a; border-radius: 5px 5px 0 0; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.orgchart .content { padding: 9px 10px; font-size: 12px; overflow-wrap: anywhere; }
+.orgchart .title span { min-width: 0; }
+.oc-connections { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
+.oc-connections path { fill: none; stroke: var(--oc-line-color); stroke-width: 1.5; stroke-linejoin: round; }
+.oc-connections .oc-spouse-link { stroke: #c47880; stroke-width: 2; }
+.oc-controls { position: absolute; inset: 0; pointer-events: none; }
+.oc-branch-enter-active, .oc-branch-leave-active { transition: opacity var(--oc-duration) ease, transform var(--oc-duration) ease !important; }
+.oc-branch-enter-from, .oc-branch-leave-to { opacity: 0; transform: translate(var(--oc-branch-x), var(--oc-branch-y)); }
+.oc-link-enter-active, .oc-link-leave-active { transition: opacity var(--oc-duration) ease, transform var(--oc-duration) ease; }
+.oc-link-enter-from, .oc-link-leave-to { opacity: 0; transform: translate(var(--oc-branch-x), var(--oc-branch-y)); }
+.oc-control { position: absolute; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; border: 1px solid #b6cac1; color: var(--oc-control-color); background: white; cursor: pointer; pointer-events: auto; padding: 0; }
+.oc-control:hover { background: var(--oc-control-hover-color); }
+.oc-control.oc-edge-top { left: calc(50% - 12px); top: -16px; }
+.oc-control.oc-edge-bottom { left: calc(50% - 12px); bottom: -16px; }
+.oc-control.oc-edge-left { left: -16px; top: calc(50% - 12px); }
+.oc-control.oc-edge-right { right: -16px; top: calc(50% - 12px); }
+.oc-drop-target { outline: 3px solid #ce9c1a !important; }
+.oc-dragging { opacity: .45; }
+.orgchart .matched { outline: 3px solid #ce9c1a; }
+.oc-minimap { position: absolute; bottom: 12px; right: 12px; width: 180px; height: 116px; background: #fffffff2; border: 1px solid #aebeb6; border-radius: 4px; touch-action: none; cursor: move; }
+.oc-minimap-node { fill: #92b9a7; }
+.oc-minimap-viewport { fill: #136b5a20; stroke: #136b5a; stroke-width: 2; vector-effect: non-scaling-stroke; }
+.oc-export { position: absolute; right: 12px; top: 12px; display: flex; gap: 6px; align-items: center; padding: 8px 12px; border: 1px solid #b6cac1; border-radius: 4px; background: white; color: #136b5a; cursor: pointer; }
+.oc-export:disabled { opacity: .5; cursor: default; }
+.oc-export-mask { position: absolute; inset: 0; display: grid; place-items: center; background: #ffffffb3; }
+.oc-spinner { animation: oc-spin 1s linear infinite; }
+.oc-empty { position: absolute; inset: 0; display: grid; place-items: center; color: #61756b; }
+@keyframes oc-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .orgchart .node, .oc-link-enter-active, .oc-link-leave-active { transition: none !important; } .oc-spinner { animation: none; } }
+@media (max-width: 600px) { .oc-minimap { width: 128px; height: 88px; } }

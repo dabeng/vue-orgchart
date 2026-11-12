@@ -1,6 +1,10 @@
 .DS_Store
 node_modules
 /dist
+/demo-dist
+/coverage
+/playwright-report
+/test-results
 
 # local env files
 .env.local

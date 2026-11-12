@@ -1,64 +1,84 @@
 {
   "name": "vue-organization-chart",
-  "version": "1.1.6",
-  "description": "organization chart component based vuejs",
-  "scripts": {
-    "serve": "vue-cli-service serve",
-    "build": "vue-cli-service build",
-    "build-component": "vue-cli-service build --target lib --name orgchart ./src/components/index.js",
-    "lint": "vue-cli-service lint"
+  "version": "2.0.0",
+  "description": "Accessible Vue 3 organization charts and family trees",
+  "type": "module",
+  "engines": {
+    "node": "^22.12.0 || >=24.0.0"
   },
-  "main": "./dist/orgchart.umd.min.js",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "serve": "vite --host 127.0.0.1",
+    "build": "vue-tsc --noEmit && vite build",
+    "build-component": "vue-tsc --noEmit && vite build --mode library && vue-tsc -p tsconfig.lib.json",
+    "preview": "vite preview --host 127.0.0.1",
+    "typecheck": "vue-tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "check": "npm run lint && npm run typecheck && npm run test:coverage && npm run build && npm run build-component && npm run test:e2e"
+  },
+  "main": "./dist/vue-orgchart.cjs",
+  "module": "./dist/vue-orgchart.js",
+  "types": "./dist/types/components/public-api.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/components/public-api.d.ts",
+      "import": "./dist/vue-orgchart.js",
+      "require": "./dist/vue-orgchart.cjs"
+    },
+    "./style.css": "./dist/vue-orgchart.css"
+  },
+  "sideEffects": [
+    "**/*.css"
+  ],
   "files": [
-    "dist"
+    "dist",
+    "docs/*.md",
+    "demo/README.md"
   ],
   "repository": {
     "type": "git",
     "url": "https://github.com/dabeng/vue-orgchart.git"
   },
   "keywords": [
-    "vuejs",
+    "vue",
     "organization",
-    "chart",
     "orgchart",
-    "tree",
-    "tree-like",
-    "tree-view"
+    "family-tree",
+    "tree"
   ],
   "author": "dabeng <dabeng413@gmail.com>",
   "license": "MIT",
+  "peerDependencies": {
+    "vue": "^3.5.0"
+  },
   "dependencies": {
-    "jquery": "^3.3.1",
-    "vue": "^2.5.17"
+    "@lucide/vue": "^1.67.0",
+    "d3-flextree": "^2.1.2",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1"
   },
   "devDependencies": {
-    "@vue/cli-plugin-babel": "^3.0.4",
-    "@vue/cli-plugin-eslint": "^3.0.4",
-    "@vue/cli-service": "^5.0.9",
-    "vue-template-compiler": "^2.5.17"
-  },
-  "eslintConfig": {
-    "root": true,
-    "env": {
-      "node": true
-    },
-    "extends": [
-      "plugin:vue/essential",
-      "eslint:recommended"
-    ],
-    "rules": {},
-    "parserOptions": {
-      "parser": "babel-eslint"
-    }
-  },
-  "postcss": {
-    "plugins": {
-      "autoprefixer": {}
-    }
-  },
-  "browserslist": [
-    "> 1%",
-    "last 2 versions",
-    "not ie <= 8"
-  ]
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.64.1",
+    "@types/d3-flextree": "^2.1.4",
+    "@types/node": "^26.6.6",
+    "@vitejs/plugin-vue": "^6.0.10",
+    "@vitest/coverage-v8": "^5.1.0",
+    "@vue/test-utils": "^2.5.1",
+    "eslint": "^10.14.0",
+    "eslint-plugin-vue": "^10.12.0",
+    "globals": "^17.14.0",
+    "jsdom": "^30.1.3",
+    "ol": "^10.11.0",
+    "typescript": "~6.0.0",
+    "typescript-eslint": "^8.72.1",
+    "vite": "^8.3.5",
+    "vitest": "^5.1.0",
+    "vue": "^3.5.44",
+    "vue-tsc": "^3.3.14"
+  }
 }
