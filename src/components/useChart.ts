@@ -23,7 +23,9 @@ export function useChart(props: ChartOptions, emit: (event: ChartEvent, ...args:
   let initialPosition = true
   const dragging = ref<string | null>(null); const dropTarget = ref<string | null>(null); const panning = ref(false)
   const relating = ref(false)
-  const leavingChildren = shallowRef<{ layout: Layout; anchor: string; keys: Set<string> } | null>(null)
+  type RelationMotion = 'children' | 'parent' | 'left' | 'right'
+  const relationMotions = shallowRef(new Map<string, RelationMotion>())
+  const leavingRelations = shallowRef<{ layout: Layout; anchor: string; keys: Set<string>; preserveAnchor: boolean } | null>(null)
   let relationRevision = 0
   const allNodes = computed(() => { revision.value; return [...model.value.nodes.values()] })
   const retained = computed(() => {
@@ -44,7 +46,7 @@ export function useChart(props: ChartOptions, emit: (event: ChartEvent, ...args:
   function expanded(node: NormalizedNode) { return branchVisible(node) && (!!keyword.value || !collapsed.has(node.key)) }
   const targetLayout = computed(() => { revision.value; return layoutChart(model.value, options.value, nodeVisible, expanded, sizes.value) })
   const layout = computed(() => {
-    const target = targetLayout.value; const leaving = leavingChildren.value
+    const target = targetLayout.value; const leaving = leavingRelations.value
     if (!leaving) return target
     const links = new Set(target.links.map(link => link.key))
     return { ...leaving.layout, boxes: new Map([...leaving.layout.boxes].filter(([key]) => target.boxes.has(key))), links: leaving.layout.links.filter(link => links.has(link.key)) }
@@ -57,9 +59,9 @@ export function useChart(props: ChartOptions, emit: (event: ChartEvent, ...args:
   let gesture: { x: number; y: number; originX: number; originY: number } | null = null
   let pinchDistance = 0
   let mapGesture: { x: number; y: number; originX: number; originY: number; ratio: number } | null = null
-  function cancelChildrenTransition() { relationRevision++; leavingChildren.value = null; relating.value = false }
+  function cancelRelationTransition() { relationRevision++; leavingRelations.value = null; relationMotions.value = new Map(); relating.value = false }
   function initializeVisibility() {
-    cancelChildrenTransition()
+    cancelRelationTransition()
     collapsed.clear(); hiddenBranches.clear(); hiddenNodes.clear(); keyword.value = ''
     const depth = visibleDepth(options.value.visibleLevel); zeroHidden.value = depth === 0
     for (const node of allNodes.value) if (node.data.collapsed || node.depth >= depth || node.children.some(group => group.some(child => child.data.className?.split(' ').includes('slide-up')))) collapsed.add(node.key)
@@ -80,60 +82,109 @@ export function useChart(props: ChartOptions, emit: (event: ChartEvent, ...args:
     const detail = { node: cloneData(node.data), relation }; emit(visible ? 'show' : 'hide', detail)
     chart.value?.dispatchEvent(new CustomEvent(`${visible ? 'show' : 'hide'}-${relation}.orgchart`, { detail }))
   }
-  function reflowChildren(previous: Layout, anchor: string) {
+  function reflowRelations(previous: Layout, anchor: string, preserveAnchor: boolean) {
     const before = model.value.nodes.has(anchor) ? element(anchor)?.getBoundingClientRect() : undefined; const previousBox = previous.boxes.get(anchor)
     const previousOffset = Math.max(0, (dimensions.width - previous.width * viewport.scale) / 2)
-    leavingChildren.value = null
+    leavingRelations.value = null
     const box = layout.value.boxes.get(anchor)
-    if (previousBox && box) { viewport.x += previousOffset - horizontalOffset.value + (previousBox.x - box.x) * viewport.scale; viewport.y += (previousBox.y - box.y) * viewport.scale }
+    if (preserveAnchor && previousBox && box) { viewport.x += previousOffset - horizontalOffset.value + (previousBox.x - box.x) * viewport.scale; viewport.y += (previousBox.y - box.y) * viewport.scale }
     const version = ++relationRevision
     nextTick(() => {
       if (version !== relationRevision || disposed.value) return
       const after = model.value.nodes.has(anchor) ? element(anchor)?.getBoundingClientRect() : undefined
-      if (host.value?.clientWidth && before && after) { viewport.x += before.x - after.x; viewport.y += before.y - after.y }
+      if (preserveAnchor && host.value?.clientWidth && before && after) { viewport.x += before.x - after.x; viewport.y += before.y - after.y }
       nextTick(() => { if (version === relationRevision) { relating.value = false; updateMinimap() } })
     })
   }
-  function changeChildren(anchor: string, change: () => void) {
-    const previous = layout.value
+  function changeRelations(anchor: string, change: () => void, motions = new Map<string, RelationMotion>(), preserveAnchor = false) {
+    const previous = leavingRelations.value?.layout ?? layout.value
+    relationMotions.value = new Map([...relationMotions.value, ...motions])
     relating.value = true; relationRevision++
+    leavingRelations.value = { layout: previous, anchor, keys: new Set(), preserveAnchor }
     change()
     const keys = new Set([...previous.boxes.keys()].filter(key => !targetLayout.value.boxes.has(key)))
-    if (keys.size && host.value?.isConnected && host.value.clientWidth && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) leavingChildren.value = { layout: previous, anchor, keys }
-    else reflowChildren(previous, anchor)
+    if (keys.size && host.value?.isConnected && host.value.clientWidth && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) leavingRelations.value = { layout: previous, anchor, keys, preserveAnchor }
+    else reflowRelations(previous, anchor, preserveAnchor)
   }
-  function childrenTransitionEnd(key: string) {
-    const leaving = leavingChildren.value
-    if (leaving?.keys.delete(key) && !leaving.keys.size) reflowChildren(leaving.layout, leaving.anchor)
+  function relationTransitionEnd(key: string) {
+    const leaving = leavingRelations.value
+    if (leaving?.keys.delete(key) && !leaving.keys.size) reflowRelations(leaving.layout, leaving.anchor, leaving.preserveAnchor)
+  }
+  function visitBranch(node: NormalizedNode, visit: (member: NormalizedNode) => void) {
+    visit(node)
+    for (const group of node.children) for (const child of group) visitBranch(child, visit)
+  }
+  function childMotions(node: NormalizedNode) {
+    const motions = new Map<string, RelationMotion>()
+    for (const group of node.children) for (const child of group) visitBranch(child, member => motions.set(member.key, 'children'))
+    return motions
+  }
+  function siblingMotions(node: NormalizedNode, direction?: 'left' | 'right') {
+    const motions = new Map<string, RelationMotion>()
+    for (const side of ['left', 'right'] as const) if (!direction || side === direction) for (const member of siblingGroups(node, side).flat()) visitBranch(member, descendant => motions.set(descendant.key, side))
+    return motions
   }
   function hideChildren(reference: NodeRef) {
-    const node = owner(model.value.resolve(reference)); changeChildren(node.key, () => collapsed.add(node.key))
+    const node = owner(model.value.resolve(reference)); changeRelations(node.key, () => {
+      visitBranch(node, descendant => { if (descendant.children.length) collapsed.add(descendant.key) })
+      collapsed.add(node.key)
+    }, childMotions(node), true)
     if (selected.value && model.value.ancestors(model.value.resolve(selected.value)).includes(node)) { selected.value = node.key; element(node.key)?.focus() }
     visibilityEvent(node, 'children', false)
   }
-  function showChildren(reference: NodeRef) { const node = owner(model.value.resolve(reference)); changeChildren(node.key, () => { collapsed.delete(node.key); zeroHidden.value = false; model.value.children(node).forEach(child => hiddenBranches.delete(child.key)) }); visibilityEvent(node, 'children', true) }
+  function showChildren(reference: NodeRef) { const node = owner(model.value.resolve(reference)); changeRelations(node.key, () => { collapsed.delete(node.key); zeroHidden.value = false; model.value.children(node).forEach(child => hiddenBranches.delete(child.key)) }, childMotions(node), true); visibilityEvent(node, 'children', true) }
   function siblingGroups(node: NormalizedNode, direction?: 'left' | 'right') {
     const groups = model.value.groups(node); const index = groups.findIndex(group => group.includes(node))
     return groups.filter((_, groupIndex) => direction === 'left' ? groupIndex < index : direction === 'right' ? groupIndex > index : groupIndex !== index)
   }
-  function hideSiblings(reference: NodeRef, direction?: 'left' | 'right') { const node = model.value.resolve(reference); siblingGroups(node, direction).flat().forEach(member => hiddenBranches.add(member.key)); visibilityEvent(node, 'siblings', false) }
-  function showSiblings(reference: NodeRef, direction?: 'left' | 'right') { const node = model.value.resolve(reference); siblingGroups(node, direction).flat().forEach(member => hiddenBranches.delete(member.key)); visibilityEvent(node, 'siblings', true) }
-  function hideParent(reference: NodeRef) {
-    let node = model.value.resolve(reference)
-    while (node.parentKey != null) {
-      siblingGroups(node).flat().forEach(member => hiddenBranches.add(member.key)); node = model.value.parent(node)!
-      for (const member of model.value.groups(node).find(group => group.includes(node)) ?? [node]) hiddenNodes.add(member.key)
-      collapsed.delete(node.key)
-    }
-    visibilityEvent(model.value.resolve(reference), 'parent', false)
+  function collapseSibling(member: NormalizedNode) {
+    hiddenBranches.add(member.key)
+    visitBranch(member, descendant => { if (descendant.children.length) collapsed.add(descendant.key) })
   }
-  function showParent(reference: NodeRef) { const node = model.value.resolve(reference); const parent = model.value.parent(node); if (parent) { for (const member of model.value.groups(parent).find(group => group.includes(parent)) ?? [parent]) hiddenNodes.delete(member.key); showSiblings(reference) } visibilityEvent(node, 'parent', true) }
+  function hideSiblings(reference: NodeRef, direction?: 'left' | 'right') { const node = model.value.resolve(reference); changeRelations(node.key, () => siblingGroups(node, direction).flat().forEach(collapseSibling), siblingMotions(node, direction)); visibilityEvent(node, 'siblings', false) }
+  function showSiblings(reference: NodeRef, direction?: 'left' | 'right') {
+    const node = model.value.resolve(reference)
+    const parent = model.value.parent(node)
+    const motions = siblingMotions(node, direction)
+    const parents = parent ? model.value.groups(parent).find(group => group.includes(parent)) ?? [parent] : []
+    parents.forEach(member => motions.set(member.key, 'parent'))
+    changeRelations(node.key, () => {
+      siblingGroups(node, direction).flat().forEach(member => hiddenBranches.delete(member.key))
+      parents.forEach(member => hiddenNodes.delete(member.key))
+    }, motions)
+    visibilityEvent(node, 'siblings', true)
+  }
+  function hideParent(reference: NodeRef) {
+    const selectedNode = model.value.resolve(reference)
+    const motions = new Map<string, RelationMotion>()
+    let node = selectedNode
+    while (node.parentKey != null) {
+      for (const [key, motion] of siblingMotions(node)) motions.set(key, motion)
+      node = model.value.parent(node)!
+      for (const member of model.value.groups(node).find(group => group.includes(node)) ?? [node]) motions.set(member.key, 'parent')
+    }
+    changeRelations(selectedNode.key, () => {
+      node = selectedNode
+      while (node.parentKey != null) {
+        siblingGroups(node).flat().forEach(collapseSibling); node = model.value.parent(node)!
+        for (const member of model.value.groups(node).find(group => group.includes(node)) ?? [node]) hiddenNodes.add(member.key)
+        collapsed.delete(node.key)
+      }
+    }, motions)
+    visibilityEvent(selectedNode, 'parent', false)
+  }
+  function showParent(reference: NodeRef) {
+    const node = model.value.resolve(reference); const parent = model.value.parent(node)
+    const parents = parent ? model.value.groups(parent).find(group => group.includes(parent)) ?? [parent] : []
+    changeRelations(node.key, () => parents.forEach(member => hiddenNodes.delete(member.key)), new Map(parents.map(member => [member.key, 'parent'])))
+    visibilityEvent(node, 'parent', true)
+  }
   function toggleChildren(reference: NodeRef) { const node = owner(model.value.resolve(reference)); if (getNodeState(node.key, 'children').visible) hideChildren(node.key); else showChildren(node.key) }
   function toggleParent(reference: NodeRef) { if (getNodeState(reference, 'parent').visible) hideParent(reference); else showParent(reference) }
   function toggleSiblings(reference: NodeRef, direction?: 'left' | 'right') { const node = model.value.resolve(reference); const side = options.value.toggleSiblingsResp ? direction : undefined; if (siblingGroups(node, side).flat().some(nodeVisible)) hideSiblings(reference, side); else showSiblings(reference, side) }
   function select(node: NormalizedNode) { selected.value = node.key; emit('node-click', cloneData(node.data)); emit('select', cloneData(node.data)) }
   function publish() {
-    cancelChildrenTransition()
+    cancelRelationTransition()
     revision.value++
     for (const key of [...collapsed, ...hiddenBranches, ...hiddenNodes]) if (!model.value.nodes.has(key)) { collapsed.delete(key); hiddenBranches.delete(key); hiddenNodes.delete(key) }
     const snapshot = model.value.snapshot(); lastPublished = snapshot; emit('update:data', snapshot); emit('update:datasource', snapshot); emit('change', snapshot); queueMinimap()
@@ -224,7 +275,7 @@ export function useChart(props: ChartOptions, emit: (event: ChartEvent, ...args:
     const node = model.value.resolve(reference); for (const ancestor of model.value.ancestors(node)) { collapsed.delete(ancestor.key); hiddenNodes.delete(ancestor.key); hiddenBranches.delete(ancestor.key) } hiddenBranches.delete(node.key); hiddenNodes.delete(node.key); zeroHidden.value = false
     nextTick(() => { const box = layout.value.boxes.get(node.key); if (box) { viewport.x = dimensions.width / 2 - horizontalOffset.value - (box.x + box.width / 2) * viewport.scale + dimensions.scrollLeft; viewport.y = dimensions.height / 2 - (box.y + box.height / 2) * viewport.scale + dimensions.scrollTop; queueMinimap() } })
   }
-  function expandAll(depth = 999) { if (!Number.isInteger(depth) || depth < 0) throw new RangeError('Invalid expansion depth'); const root = model.value.roots[0]?.[0]; changeChildren(root?.key ?? '', () => { zeroHidden.value = depth === 0; collapsed.clear(); hiddenBranches.clear(); hiddenNodes.clear(); for (const node of allNodes.value) if (node.depth >= depth) collapsed.add(node.key) }) }
+  function expandAll(depth = 999) { if (!Number.isInteger(depth) || depth < 0) throw new RangeError('Invalid expansion depth'); const root = model.value.roots[0]?.[0]; changeRelations(root?.key ?? '', () => { zeroHidden.value = depth === 0; collapsed.clear(); hiddenBranches.clear(); hiddenNodes.clear(); for (const node of allNodes.value) if (node.depth >= depth) collapsed.add(node.key) }, new Map(allNodes.value.map(node => [node.key, 'children'])), true) }
   function collapseAll() { expandAll(1) }
   function filterNodes(value: string) { keyword.value = value.trim() }
   function clearFilter() { keyword.value = '' }
@@ -265,7 +316,7 @@ export function useChart(props: ChartOptions, emit: (event: ChartEvent, ...args:
     catch (error) { emit('export-error', { error }); currentChart.dispatchEvent(new CustomEvent('export-error.orgchart', { detail: { error } })); throw error }
     finally { exporting.value = false }
   }
-  function destroy() { disposed.value = true; cancelChildrenTransition(); abortRequests(); dragEnd(); pointers.clear(); gesture = null; mapGesture = null; panning.value = false; observer?.disconnect(); observer = undefined; if (frame != null) cancelAnimationFrame(frame); frame = undefined; model.value = new ChartModel(null, options.value.nodeId); selected.value = null; sizes.value = new Map(); revision.value++; return api }
+  function destroy() { disposed.value = true; cancelRelationTransition(); abortRequests(); dragEnd(); pointers.clear(); gesture = null; mapGesture = null; panning.value = false; observer?.disconnect(); observer = undefined; if (frame != null) cancelAnimationFrame(frame); frame = undefined; model.value = new ChartModel(null, options.value.nodeId); selected.value = null; sizes.value = new Map(); revision.value++; return api }
   const api = {
     get chart() { return disposed.value ? null : chart.value }, get chartContainer() { return host.value }, init, destroy, setOptions,
     attachMinimap: () => setOptions('minimap', true), detachMinimap: () => setOptions('minimap', false), updateMinimap,
@@ -276,7 +327,7 @@ export function useChart(props: ChartOptions, emit: (event: ChartEvent, ...args:
   }
   onMounted(() => { viewport.scale = Math.min(options.value.zoominLimit, Math.max(options.value.zoomoutLimit, 1)); observe(); emit('init', chart.value); if (chart.value) options.value.initCompleted?.(chart.value) })
   onBeforeUnmount(destroy); watch(layout, () => nextTick(observe))
-  return { api, options, model, revision, host, chart, disposed, selected, allNodes, layout, transform, viewport, dimensions, minimapViewport, exporting, loading, dragging, dropTarget, panning, relating, childrenTransitionEnd, keyword, nodeVisible, owner, getNodeState, toggleChildren, toggleParent, toggleSiblings, siblingGroups, select, dragStart, dragOver, dragLeave, dragEnd, drop, touchStart, wheel, pointerDown, pointerMove, pointerUp, minimapDown, minimapMove, minimapUp, updateMinimap, register }
+  return { api, options, model, revision, host, chart, disposed, selected, allNodes, layout, transform, viewport, dimensions, minimapViewport, exporting, loading, dragging, dropTarget, panning, relating, relationMotions, relationTransitionEnd, keyword, nodeVisible, owner, getNodeState, toggleChildren, toggleParent, toggleSiblings, siblingGroups, select, dragStart, dragOver, dragLeave, dragEnd, drop, touchStart, wheel, pointerDown, pointerMove, pointerUp, minimapDown, minimapMove, minimapUp, updateMinimap, register }
 }
 export type ChartContext = ReturnType<typeof useChart>
 export type OrgChartInstance = ChartContext['api']

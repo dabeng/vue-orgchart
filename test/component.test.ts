@@ -24,10 +24,11 @@ describe('Vue chart', () => {
     ['l2r', 'left', 'right', 'top', 'bottom', 'right', 'left', 'down', 'up'],
     ['r2l', 'right', 'left', 'top', 'bottom', 'left', 'right', 'down', 'up'],
   ] as const)('points controls inward to collapse and outward to expand in %s', async (direction, parentEdge, childEdge, leftEdge, rightEdge, parentArrow, childArrow, leftArrow, rightArrow) => {
-    const { wrapper } = render({ direction, toggleSiblingsResp: true, data: { id: 'a', children: [{ id: 'left' }, { id: 'b', children: [{ id: 'd' }] }, { id: 'right' }] } })
+    const { wrapper, api } = render({ direction, toggleSiblingsResp: true, data: { id: 'a', children: [{ id: 'left' }, { id: 'b', children: [{ id: 'd' }] }, { id: 'right' }] } })
     await wrapper.find('#b').trigger('focusin')
     const opposite = { up: 'down', down: 'up', left: 'right', right: 'left' } as const
     for (const [selector, edge, icon, relation] of [['.topEdge', parentEdge, parentArrow, 'a'], ['.bottomEdge', childEdge, childArrow, 'd'], ['.leftEdge', leftEdge, leftArrow, 'left'], ['.rightEdge', rightEdge, rightArrow, 'right']] as const) {
+      api.expandAll(); await nextTick()
       const button = wrapper.find(`#b ${selector}`)
       expect(button.classes()).toContain(`oc-edge-${edge}`)
       expect(button.find(`.lucide-chevron-${icon}`).exists()).toBe(true)
@@ -54,9 +55,10 @@ describe('Vue chart', () => {
     expect(wrapper.find('#b .rightEdge .lucide-chevron-left').exists()).toBe(true)
   })
   it('switches custom directional icons with relation visibility', async () => {
-    const { wrapper } = render({ icons: { theme: 'custom-icons', expandToUp: 'custom-up', collapseToDown: 'custom-down', collapseToLeft: 'custom-left', expandToRight: 'custom-right' } })
+    const { wrapper, api } = render({ icons: { theme: 'custom-icons', expandToUp: 'custom-up', collapseToDown: 'custom-down', collapseToLeft: 'custom-left', expandToRight: 'custom-right' } })
     await wrapper.find('#b').trigger('focusin')
     for (const [selector, collapsed, expanded] of [['.topEdge', 'custom-down', 'custom-up'], ['.bottomEdge', 'custom-up', 'custom-down'], ['.rightEdge', 'custom-left', 'custom-right']]) {
+      api.expandAll(); await nextTick()
       const button = wrapper.find(`#b ${selector}`)
       expect(button.find(`i.${collapsed}`).classes()).toContain('custom-icons')
       await button.trigger('click'); expect(button.find(`i.${expanded}`).exists()).toBe(true)
@@ -74,7 +76,7 @@ describe('Vue chart', () => {
     }
   })
   it('queries loaded hidden relations', async () => { const { api } = render(); api.hideChildren('a'); await nextTick(); expect(api.getChildren('a').map(node => node.id)).toEqual(['b', 'c']); expect(api.getParent('b')?.id).toBe('a'); expect(api.getRelatedNodes('b', 'siblings')).toHaveLength(1); expect(api.getNodeState('a', 'children')).toEqual({ exist: true, visible: false }); api.showChildren('a'); expect(api.getNodeState('a', 'children').visible).toBe(true) })
-  it('hides ancestors and restores one level', async () => { const { wrapper, api } = render(); api.hideParent('d'); await nextTick(); expect(wrapper.find('#d').isVisible()).toBe(true); expect(wrapper.find('#a').isVisible()).toBe(false); expect(wrapper.find('#c').isVisible()).toBe(false); api.showParent('d'); await nextTick(); expect(wrapper.find('#b').isVisible()).toBe(true); expect(wrapper.find('#a').isVisible()).toBe(false); api.showParent('b'); await nextTick(); expect(wrapper.find('#c').isVisible()).toBe(true) })
+  it('hides ancestors and restores one level without siblings', async () => { const { wrapper, api } = render(); api.hideParent('d'); await nextTick(); expect(wrapper.find('#d').isVisible()).toBe(true); expect(wrapper.find('#a').isVisible()).toBe(false); expect(wrapper.find('#c').isVisible()).toBe(false); api.showParent('d'); await nextTick(); expect(wrapper.find('#b').isVisible()).toBe(true); expect(wrapper.find('#a').isVisible()).toBe(false); api.showParent('b'); await nextTick(); expect(wrapper.find('#a').isVisible()).toBe(true); expect(wrapper.find('#c').isVisible()).toBe(false) })
   it('toggles sibling sides independently', async () => { const { wrapper, api } = render({ data: { id: 'a', children: [{ id: 'b' }, { id: 'c' }, { id: 'd' }] }, toggleSiblingsResp: true }); api.hideSiblings('c', 'left'); await nextTick(); expect(wrapper.find('#b').isVisible()).toBe(false); expect(wrapper.find('#d').isVisible()).toBe(true); api.showSiblings('c', 'left'); api.hideSiblings('c', 'right'); await nextTick(); expect(wrapper.find('#b').isVisible()).toBe(true); expect(wrapper.find('#d').isVisible()).toBe(false) })
   it('supports slots, VNodes and callbacks', async () => { const callback = vi.fn(); const { wrapper } = render({ createNode: callback }, { default: ({ nodeData }: { nodeData: OrgNode }) => h('strong', {}, nodeData.name) }); expect(wrapper.find('strong').text()).toBe('Alice'); expect(callback).toHaveBeenCalledTimes(4); const second = render({ nodeTemplate: node => h('em', {}, String(node.name)) }); expect(second.wrapper.find('em').text()).toBe('Alice'); await second.wrapper.setProps({ nodeTemplate: node => `<b>${node.name}</b>` }); expect(second.wrapper.find('b').text()).toBe('Alice') })
   it('edits immutable input and retains edits during option updates', async () => { const input = data(); const { wrapper, api } = render({ data: input }); api.addChildren('c', [{ id: 'e' }]); api.addSiblings('b', [{ id: 'f' }]); api.addParent('a', { id: 'root' }); await nextTick(); api.setOptions('direction', 'l2r'); api.init(); await nextTick(); expect(api.getHierarchy(true)).toHaveProperty('children.0.children.1.children.0.id', 'e'); expect(input).toEqual(data()); expect(wrapper.emitted('change')).toHaveLength(3); api.removeNodes('b'); await nextTick(); expect(wrapper.find('#d').exists()).toBe(false) })

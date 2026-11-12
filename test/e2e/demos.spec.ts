@@ -49,6 +49,9 @@ for (const [direction, parentEdge, childEdge, siblingEdge, parentArrow, childArr
     await node.focus(); await node.scrollIntoViewIfNeeded()
     const opposite = { up: 'down', down: 'up', left: 'right', right: 'left' } as const
     for (const [selector, edge, icon, relation] of [['.topEdge', parentEdge, parentArrow, '1'], ['.bottomEdge', childEdge, childArrow, '4'], ['.rightEdge', siblingEdge, siblingArrow, '3']] as const) {
+      await page.getByRole('button', { name: 'Expand all', exact: true }).click()
+      await expect.poll(() => page.locator('.orgchart').evaluate(chart => chart.getAnimations({ subtree: true }).length)).toBe(0)
+      await node.focus(); await node.scrollIntoViewIfNeeded()
       const button = node.locator(selector)
       await expect(button.locator(`.lucide-chevron-${icon}`)).toBeVisible()
       await expect.poll(() => button.evaluate((element, side) => {
@@ -187,17 +190,14 @@ for (const [direction, axis, sign] of [
     await page.locator('.node[id="1"]').hover()
     await expect(page.locator('.node[id="1"] .bottomEdge')).toBeVisible()
     await expect.poll(() => page.locator('.orgchart').evaluate(chart => chart.getAnimations({ subtree: true }).length)).toBe(0)
-    const nodeCount = await page.locator('.node:visible').count()
     const sampleTransition = () => page.locator('.orgchart').evaluate(async chart => {
       chart.closest<HTMLElement>('.oc-shell')!.style.setProperty('--oc-duration', '800ms')
       const parent = chart.querySelector<HTMLElement>('.node[id="1"]')!
       const child = chart.querySelector<HTMLElement>('.node[id="2"]')!
       const snapshot = () => {
-        const link = chart.querySelector<SVGPathElement>('.oc-connections path')
-        if (child.style.display === 'none' || !link) return null
+        if (child.style.display === 'none') return null
         const parentBounds = parent.getBoundingClientRect(); const childBounds = child.getBoundingClientRect()
-        const linkBounds = link.getBoundingClientRect()
-        return { parent: { x: parentBounds.x, y: parentBounds.y, opacity: Number(getComputedStyle(parent).opacity) }, child: { x: childBounds.x, y: childBounds.y, opacity: Number(getComputedStyle(child).opacity) }, link: { x: linkBounds.x, y: linkBounds.y, opacity: Number(getComputedStyle(link).opacity) } }
+        return { parent: { x: parentBounds.x, y: parentBounds.y, opacity: Number(getComputedStyle(parent).opacity) }, child: { x: childBounds.x, y: childBounds.y, opacity: Number(getComputedStyle(child).opacity) }, links: [...chart.querySelectorAll('.oc-connections path:not(.oc-spouse-link)')].filter(link => getComputedStyle(link).display !== 'none').length }
       }
       const frames = [snapshot()]
       parent.querySelector<HTMLButtonElement>('.bottomEdge')!.click()
@@ -211,10 +211,8 @@ for (const [direction, axis, sign] of [
       expect(Math.abs(sample.parent.y - initial.parent.y)).toBeLessThan(1)
       expect(sample.parent.opacity).toBe(1)
       expect(Math.abs(sample.child[axis === 'x' ? 'y' : 'x'] - initial.child[axis === 'x' ? 'y' : 'x'])).toBeLessThan(1)
-      expect(Math.abs(sample.link[axis === 'x' ? 'y' : 'x'] - initial.link[axis === 'x' ? 'y' : 'x'])).toBeLessThan(1)
-      expect(sample.link[axis] - initial.link[axis]).toBeCloseTo(sample.child[axis] - initial.child[axis], 0)
-      expect(sample.link.opacity).toBeCloseTo(sample.child.opacity, 1)
     }
+    expect(samples.slice(2).every(sample => sample.links === 0)).toBe(true)
     expect((samples.at(-1)!.child[axis] - initial.child[axis]) * sign).toBeGreaterThan(1)
     expect(samples.at(-1)!.child.opacity).toBeLessThan(1)
     await expect(page.locator('.node:visible')).toHaveCount(1)
@@ -227,13 +225,12 @@ for (const [direction, axis, sign] of [
       expect(Math.abs(sample.parent.x - initial.parent.x)).toBeLessThan(1)
       expect(Math.abs(sample.parent.y - initial.parent.y)).toBeLessThan(1)
       expect(sample.parent.opacity).toBe(1)
-      expect(Math.abs(sample.child[axis === 'x' ? 'y' : 'x'] - initial.child[axis === 'x' ? 'y' : 'x'])).toBeLessThan(1)
-      expect(sample.link[axis] - initial.link[axis]).toBeCloseTo(sample.child[axis] - initial.child[axis], 0)
-      expect(sample.link.opacity).toBeCloseTo(sample.child.opacity, 1)
+      expect(Math.abs(sample.child[axis === 'x' ? 'y' : 'x'] - expansion[0]!.child[axis === 'x' ? 'y' : 'x'])).toBeLessThan(1)
+      expect(sample.links).toBe(2)
     }
     expect((expansion.at(-1)!.child[axis] - expansion[0]!.child[axis]) * sign).toBeLessThan(-1)
     expect(expansion.at(-1)!.child.opacity).toBeGreaterThan(expansion[0]!.child.opacity)
-    await expect(page.locator('.node:visible')).toHaveCount(nodeCount)
+    await expect(page.locator('.node:visible')).toHaveCount(3)
     await expect.poll(() => page.locator('.orgchart').evaluate(chart => chart.getAnimations({ subtree: true }).length)).toBe(0)
     const expandedParent = (await page.locator('.node[id="1"]').boundingBox())!
     expect(expandedParent.x).toBeCloseTo(initial.parent.x, 0); expect(expandedParent.y).toBeCloseTo(initial.parent.y, 0)
@@ -258,7 +255,7 @@ test('nested children and rapid reversals keep the clicked parent stationary', a
     return samples
   })
   for (const sample of samples) { expect(Math.abs(sample.x - initial.x)).toBeLessThan(1); expect(Math.abs(sample.y - initial.y)).toBeLessThan(1); expect(sample.opacity).toBe(1) }
-  await expect(page.locator('.node:visible')).toHaveCount(9)
+  await expect(page.locator('.node:visible')).toHaveCount(7)
   await expect(page.locator('.orgchart')).not.toHaveClass(/oc-relating/)
   await expect.poll(() => page.locator('.orgchart').evaluate(chart => chart.getAnimations({ subtree: true }).length)).toBe(0)
   await parent.getByRole('button', { name: 'Collapse children' }).click()
@@ -267,8 +264,80 @@ test('nested children and rapid reversals keep the clicked parent stationary', a
   const collapsed = (await parent.boundingBox())!
   expect(collapsed.x).toBeCloseTo(initial.x, 0); expect(collapsed.y).toBeCloseTo(initial.y, 0)
   await parent.getByRole('button', { name: 'Expand children' }).click()
-  await expect(page.locator('.node:visible')).toHaveCount(9)
+  await expect(page.locator('.node:visible')).toHaveCount(7)
   await expect.poll(() => page.locator('.orgchart').evaluate(chart => chart.getAnimations({ subtree: true }).length)).toBe(0)
   const expanded = (await parent.boundingBox())!
   expect(expanded.x).toBeCloseTo(initial.x, 0); expect(expanded.y).toBeCloseTo(initial.y, 0)
 })
+
+for (const direction of ['t2b', 'b2t', 'l2r', 'r2l'] as const) {
+  for (const [relation, anchorId, targetId, edge, outgoing] of [
+    ['parent', '2', '1', '.topEdge', { '1': 'parent', '3': 'right', '8': 'right', '9': 'right' }],
+    ['left', '3', '2', '.leftEdge', { '2': 'left', '4': 'left', '5': 'left', '6': 'left', '7': 'left' }],
+    ['right', '2', '3', '.rightEdge', { '3': 'right', '8': 'right', '9': 'right' }],
+  ] as const) {
+    test(`native ${relation} collapse and expansion: ${direction}`, async ({ page }) => {
+      await page.goto('/#/local-datasource')
+      const directionLabels = { t2b: 'Top to bottom', b2t: 'Bottom to top', l2r: 'Left to right', r2l: 'Right to left' }
+      await page.getByRole('button', { name: directionLabels[direction], exact: true }).click()
+      const anchor = page.locator(`.node[id="${anchorId}"]`)
+      await anchor.focus(); await anchor.scrollIntoViewIfNeeded()
+      await expect.poll(() => page.locator('.orgchart').evaluate(chart => chart.getAnimations({ subtree: true }).length)).toBe(0)
+      const sample = () => page.locator('.orgchart').evaluate(async (chart, { anchorId, edge }) => {
+        chart.closest<HTMLElement>('.oc-shell')!.style.setProperty('--oc-duration', '700ms')
+        const snapshot = () => ({
+          nodes: Object.fromEntries([...chart.querySelectorAll<HTMLElement>('.node')].map(node => {
+            const rect = node.getBoundingClientRect(); const css = getComputedStyle(node); const matrix = new DOMMatrix(css.transform)
+            return [node.id, { x: rect.x, y: rect.y, opacity: Number(css.opacity), tx: matrix.m41, ty: matrix.m42, visible: css.display !== 'none' }]
+          })),
+          links: [...chart.querySelectorAll<SVGPathElement>('.oc-connections path:not(.oc-spouse-link)')].filter(link => getComputedStyle(link).display !== 'none').map(link => [link.dataset.source, link.dataset.target]),
+        })
+        const frames = [snapshot()]
+        chart.querySelector<HTMLElement>(`.node[id="${anchorId}"]`)!.querySelector<HTMLButtonElement>(edge)!.click()
+        for (let frame = 0; frame < 14; frame++) { await new Promise(requestAnimationFrame); frames.push(snapshot()) }
+        return frames
+      }, { anchorId, edge })
+      const vector = (motion: 'parent' | 'left' | 'right') => {
+        if (motion === 'parent') return direction === 't2b' ? [0, 40] : direction === 'b2t' ? [0, -40] : direction === 'l2r' ? [130, 0] : [-130, 0]
+        const sign = motion === 'left' ? 1 : -1
+        return direction === 'l2r' || direction === 'r2l' ? [0, sign * 40] : [sign * 130, 0]
+      }
+      const exit = await sample(); const initial = exit[0]!
+      const moving = exit.slice(3)
+      expect(moving.length).toBeGreaterThan(5)
+      for (const frame of moving) {
+        expect(frame.nodes[anchorId]!.x).toBeCloseTo(initial.nodes[anchorId]!.x, 0)
+        expect(frame.nodes[anchorId]!.y).toBeCloseTo(initial.nodes[anchorId]!.y, 0)
+        for (const [key, motion] of Object.entries(outgoing)) {
+          const node = frame.nodes[key]!; const start = initial.nodes[key]!; const [dx, dy] = vector(motion)
+          expect(node.visible).toBe(true)
+          expect(node.tx).toBeCloseTo(dx! * (1 - node.opacity), 2)
+          expect(node.ty).toBeCloseTo(dy! * (1 - node.opacity), 2)
+          expect(node.x - start.x).toBeCloseTo(node.tx, 0)
+          expect(node.y - start.y).toBeCloseTo(node.ty, 0)
+        }
+        expect(frame.links.every(endpoints => endpoints.every(key => !Object.hasOwn(outgoing, key!)))).toBe(true)
+      }
+      expect(moving.at(-1)!.nodes[targetId]!.opacity).toBeLessThan(.95)
+      expect(moving.at(-1)!.nodes[targetId]!.opacity).toBeGreaterThan(0)
+      await expect(page.locator('.orgchart')).not.toHaveClass(/oc-relating/)
+      await expect(page.locator(`.node[id="${targetId}"]`)).not.toBeVisible()
+      await anchor.focus(); await anchor.scrollIntoViewIfNeeded()
+      const enter = await sample()
+      const visible = enter.filter(frame => frame.nodes[targetId]!.visible)
+      expect(visible.length).toBeGreaterThan(5)
+      const [dx, dy] = vector(relation)
+      for (const frame of visible) {
+        const node = frame.nodes[targetId]!
+        expect(node.tx).toBeCloseTo(dx! * (1 - node.opacity), 2)
+        expect(node.ty).toBeCloseTo(dy! * (1 - node.opacity), 2)
+      }
+      expect(visible.at(-1)!.nodes[targetId]!.opacity).toBeGreaterThan(visible[0]!.nodes[targetId]!.opacity)
+      await expect.poll(() => page.locator('.orgchart').evaluate(chart => chart.getAnimations({ subtree: true }).length)).toBe(0)
+      await expect(page.locator(`.node[id="${targetId}"]`)).toBeVisible()
+      await expect(page.locator(`.node[id="${relation === 'parent' ? '3' : relation === 'left' ? '4' : '8'}"]`)).not.toBeVisible()
+      await expect(page.getByRole('alert')).toHaveCount(0)
+      await page.screenshot({ path: test.info().outputPath(`native-${relation}-${direction}.png`), fullPage: true })
+    })
+  }
+}

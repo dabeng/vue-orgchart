@@ -101,9 +101,9 @@ Generated family_id values are not persistent household identifiers. Use `flatTo
 | Method | Behavior |
 | --- | --- |
 | `hideParent(node)` | Hides ancestor cards and sibling households while keeping the chosen descendant path. |
-| `showParent(node)` | Restores one parent household and the node's sibling households. Call up the path for all ancestors. |
-| `hideChildren(node)` / `showChildren(node)` | Collapse or expand loaded children; nested collapse state is retained. Family shared-owner fallback is supported. |
-| `hideSiblings(node, direction?)` / `showSiblings(node, direction?)` | Hide/show all other households or only left/right groups. The selected spouse group remains intact. |
+| `showParent(node)` | Restores one parent household without restoring hidden siblings. Call up the path for all ancestors. |
+| `hideChildren(node)` / `showChildren(node)` | Collapse loaded descendants and their branches / restore only immediate child groups. Family shared-owner fallback is supported. |
+| `hideSiblings(node, direction?)` / `showSiblings(node, direction?)` | Hide/show all other households or only left/right groups, keeping their descendants collapsed. Showing siblings also restores a hidden immediate parent. The selected spouse group remains intact. |
 | `expandAll(depth = 999)` / `collapseAll()` | Expand to specified nonnegative integer depth / show first level. Clears sibling/ancestor hiding. |
 | `filterNodes(keyword)` / `clearFilter()` | Show matching text records plus ancestor paths and households / restore pre-filter navigation state. |
 | `setChartScale(multiplier, anchor?)` | Relative positive multiplier, optional host-local `{x,y}`; bounds inclusive and anchor fixed. |
@@ -113,6 +113,8 @@ Generated family_id values are not persistent household identifiers. Use `flatTo
 | `resetView()` | Resets translation, scroll and scale 1 clamped within limits. |
 
 Pointer pan starts only on chart background. Wheel zoom cancels browser scrolling only when enabled. Pinch uses the two-pointer midpoint. Touch drag starts after a 350ms hold; movement cancels the hold. Minimap supports pointer click/drag, wheel, and arrow keys. CSS `--oc-duration` controls transitions; reduced motion disables animations without blocking state changes.
+
+Relationship transitions follow the native demo: ancestors fade toward their children, descendants toward their parent, and siblings toward the selected household. The reverse transition restores each group. Default timing is 300ms with CSS ease; `--oc-slide-x` and `--oc-slide-y` default to 130px and 40px. Ordinary parent/child connectors disappear at collapse start; outgoing cards retain their geometry until the exit finishes, then layout reflows.
 
 ## Export
 

@@ -29,9 +29,9 @@ describe('viewport and interaction', () => {
     expect(context.layout.value.links).toHaveLength(0)
     expect(context.layout.value.width).toBe(width); expect(context.layout.value.height).toBe(height)
     expect(point()).toEqual(initial)
-    context.childrenTransitionEnd('b'); context.childrenTransitionEnd('c')
+    context.relationTransitionEnd('b'); context.relationTransitionEnd('c')
     expect(context.layout.value.height).toBe(height)
-    context.childrenTransitionEnd('d'); await nextTick(); await nextTick()
+    context.relationTransitionEnd('d'); await nextTick(); await nextTick()
     expect(context.layout.value.width).toBeLessThanOrEqual(width)
     expect(context.layout.value.height).toBeLessThanOrEqual(height)
     expect(point()).toEqual(initial)
@@ -39,7 +39,7 @@ describe('viewport and interaction', () => {
     expect(context.dimensions.scrollTop).toBe(40)
     expect(context.relating.value).toBe(false)
     context.api.showChildren('a'); await nextTick(); await nextTick()
-    expect(context.layout.value.boxes.size).toBe(4)
+    expect(context.layout.value.boxes.size).toBe(3)
     expect(point()).toEqual(initial)
   })
   it('cancels outgoing layout state when data is replaced or the chart is destroyed', async () => {
@@ -47,11 +47,43 @@ describe('viewport and interaction', () => {
     document.body.appendChild(host); cleanups.push(() => host.remove())
     vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false })))
     context.api.hideChildren('a'); context.api.setOptions({ data: { id: 'new' } })
-    for (const key of ['b', 'c', 'd']) context.childrenTransitionEnd(key)
+    for (const key of ['b', 'c', 'd']) context.relationTransitionEnd(key)
     await nextTick()
     expect([...context.layout.value.boxes.keys()]).toEqual(['new'])
-    context.api.destroy(); context.childrenTransitionEnd('new'); context.api.expandAll()
+    context.api.destroy(); context.relationTransitionEnd('new'); context.api.expandAll()
     await nextTick(); expect(context.layout.value.boxes.size).toBe(0)
+  })
+  it('retains the correct connector and motion when siblings leave', () => {
+    const context = setup(); const host = context.host.value!
+    document.body.appendChild(host); cleanups.push(() => host.remove())
+    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false })))
+    const initial = context.layout.value
+    const connector = initial.links.find(link => link.target === 'c')!
+    context.api.hideSiblings('c')
+    expect(context.layout.value.width).toBe(initial.width)
+    expect(context.layout.value.links).toEqual([connector])
+    expect(context.relationMotions.value.get('b')).toBe('left')
+    expect(context.relationMotions.value.get('d')).toBe('left')
+    context.relationTransitionEnd('b')
+    expect(context.relating.value).toBe(true)
+    context.relationTransitionEnd('d')
+    expect(context.layout.value.links[0]!.key).toBe(connector.key)
+  })
+  it('keeps connector identities distinct for hyphenated node IDs', () => {
+    const context = setup({ data: { id: 'a', children: [{ id: 'b-c' }, { id: 'a-b', children: [{ id: 'c' }] }] } })
+    expect(new Set(context.layout.value.links.map(link => link.key)).size).toBe(3)
+  })
+  it('removes hidden ancestor rows only after their exit finishes', async () => {
+    const context = setup(); const host = context.host.value!
+    document.body.appendChild(host); cleanups.push(() => host.remove())
+    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false })))
+    const initial = context.layout.value
+    context.api.hideParent('b')
+    expect(context.relationMotions.value.get('a')).toBe('parent')
+    expect(context.relationMotions.value.get('c')).toBe('right')
+    expect(context.layout.value.boxes.get('b')).toEqual(initial.boxes.get('b'))
+    context.relationTransitionEnd('a'); context.relationTransitionEnd('c'); await nextTick()
+    expect(context.layout.value.boxes.get('b')!.y).toBe(initial.boxes.get('a')!.y)
   })
   it('centers fitting charts without changing the user pan or vertical origin', () => {
     const context = setup(); const offset = (800 - context.layout.value.width) / 2

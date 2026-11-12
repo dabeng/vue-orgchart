@@ -392,11 +392,11 @@ Required NodeRef. Returns void. Hides ancestor cards and sibling households whil
 
 ### showParent(node)
 
-Required NodeRef. Returns void. Restores one parent household and the node's sibling households. Repeatedly call along the ancestor path to restore more levels; it is not an expand-all operation.
+Required NodeRef. Returns void. Restores one parent household without restoring hidden sibling households. Repeatedly call along the ancestor path to restore more levels; it is not an expand-all operation.
 
 ### hideChildren(node)
 
-Required NodeRef. Returns void. Collapses the loaded child branch while retaining deeper collapse state. Either spouse can operate a shared child control when only one member owns the descendants.
+Required NodeRef. Returns void. Collapses the loaded child branch and its deeper branches. Showing children again restores only the immediate child groups, matching native navigation. Either spouse can operate a shared child control when only one member owns the descendants.
 
 ### showChildren(node)
 
@@ -404,11 +404,11 @@ Required NodeRef. Returns void. Expands the immediate loaded child groups; neste
 
 ### hideSiblings(node, direction?)
 
-Required NodeRef; optional direction is left or right, otherwise both sides. Returns void. Hides sibling households while retaining the selected household/spouses. Left/right are logical sibling-order sides, displayed vertically in horizontal chart directions.
+Required NodeRef; optional direction is left or right, otherwise both sides. Returns void. Hides sibling households and collapses their descendants while retaining the selected household/spouses. Left/right are logical sibling-order sides, displayed vertically in horizontal chart directions.
 
 ### showSiblings(node, direction?)
 
-Same parameters as hideSiblings. Returns void. Restores the selected side's sibling households without merging spouses or changing parentage.
+Same parameters as hideSiblings. Returns void. Restores the selected side's sibling households with descendants still collapsed, and restores their immediate parent if hidden. It does not merge spouses or change parentage.
 
 ```ts
 chart.value?.hideSiblings('engineering', 'right')

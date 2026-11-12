@@ -231,11 +231,11 @@ async function loadTeam() {
 
 ### showParent(node)
 
-必填 NodeRef；返回 void。恢复一层父家庭及本节点的兄弟家庭。恢复所有祖先需沿路径多次调用，并非全部展开。
+必填 NodeRef；返回 void。仅恢复一层父家庭，不恢复隐藏的兄弟家庭。恢复所有祖先需沿路径多次调用，并非全部展开。
 
 ### hideChildren(node)
 
-必填 NodeRef；返回 void。折叠已加载的后代分支，保留更深层折叠状态；仅一方拥有孩子时配偶可操作共享控制。
+必填 NodeRef；返回 void。折叠已加载的后代及其深层分支；再次展开只恢复直接子组，与原版导航一致。仅一方拥有孩子时配偶可操作共享控制。
 
 ### showChildren(node)
 
@@ -243,11 +243,11 @@ async function loadTeam() {
 
 ### hideSiblings(node, direction?)
 
-必填 NodeRef；可选 left / right，不传则两侧；返回 void。按逻辑兄弟顺序隐藏家庭组，保留当前配偶组；横向布局时两侧会显示为上下。方法的方向参数不依赖 toggleSiblingsResp。
+必填 NodeRef；可选 left / right，不传则两侧；返回 void。按逻辑兄弟顺序隐藏家庭组并折叠其后代，保留当前配偶组；横向布局时两侧会显示为上下。方法的方向参数不依赖 toggleSiblingsResp。
 
 ### showSiblings(node, direction?)
 
-与 hideSiblings 参数相同；返回 void。恢复指定一侧或两侧家庭，不改变父子与配偶关系。
+与 hideSiblings 参数相同；返回 void。恢复指定一侧或两侧家庭，其后代保持折叠；直接父家庭若隐藏则一并恢复。不改变父子与配偶关系。
 
 ### expandAll(depth = 999)
 

@@ -1,11 +1,19 @@
-.oc-shell { --oc-node-width: 168px; --oc-row-height: 72px; --oc-line-color: #96ada6; --oc-hover-color: #e7f4ef; --oc-control-color: #136b5a; --oc-control-hover-color: #d7eee5; --oc-duration: 300ms; position: relative; width: 100%; height: 420px; color: #24372f; }
+.oc-shell { --oc-node-width: 168px; --oc-row-height: 72px; --oc-slide-x: 130px; --oc-slide-y: 40px; --oc-line-color: #96ada6; --oc-hover-color: #e7f4ef; --oc-control-color: #136b5a; --oc-control-hover-color: #d7eee5; --oc-duration: 300ms; position: relative; width: 100%; height: 420px; color: #24372f; }
 .orgchart-container { position: relative; width: 100%; height: 100%; overflow: auto; border: 1px solid #cad6d1; background-color: #f7faf8; background-image: radial-gradient(#d5dfda 1px, transparent 1px); background-size: 16px 16px; box-sizing: border-box; overscroll-behavior: contain; }
 .oc-panning { cursor: grabbing; }
 .oc-scene { position: relative; min-width: 100%; min-height: 100%; }
-.orgchart { --oc-branch-x: 0px; --oc-branch-y: calc(-1 * var(--oc-row-height)); position: relative; transform-origin: 0 0; box-sizing: border-box; user-select: none; }
-.orgchart.b2t { --oc-branch-y: var(--oc-row-height); }
-.orgchart.l2r { --oc-branch-x: calc(-1 * var(--oc-node-width)); --oc-branch-y: 0px; }
-.orgchart.r2l { --oc-branch-x: var(--oc-node-width); --oc-branch-y: 0px; }
+.orgchart { --oc-branch-x: 0px; --oc-branch-y: calc(-1 * var(--oc-slide-y)); position: relative; transform-origin: 0 0; box-sizing: border-box; user-select: none; }
+.orgchart.b2t { --oc-branch-y: var(--oc-slide-y); }
+.orgchart.l2r { --oc-branch-x: calc(-1 * var(--oc-slide-x)); --oc-branch-y: 0px; }
+.orgchart.r2l { --oc-branch-x: var(--oc-slide-x); --oc-branch-y: 0px; }
+.orgchart .oc-motion-parent { --oc-branch-x: 0px; --oc-branch-y: var(--oc-slide-y); }
+.orgchart.b2t .oc-motion-parent { --oc-branch-y: calc(-1 * var(--oc-slide-y)); }
+.orgchart.l2r .oc-motion-parent { --oc-branch-x: var(--oc-slide-x); --oc-branch-y: 0px; }
+.orgchart.r2l .oc-motion-parent { --oc-branch-x: calc(-1 * var(--oc-slide-x)); --oc-branch-y: 0px; }
+.orgchart .oc-motion-left { --oc-branch-x: var(--oc-slide-x); --oc-branch-y: 0px; }
+.orgchart .oc-motion-right { --oc-branch-x: calc(-1 * var(--oc-slide-x)); --oc-branch-y: 0px; }
+.orgchart.l2r .oc-motion-left, .orgchart.r2l .oc-motion-left { --oc-branch-x: 0px; --oc-branch-y: var(--oc-slide-y); }
+.orgchart.l2r .oc-motion-right, .orgchart.r2l .oc-motion-right { --oc-branch-x: 0px; --oc-branch-y: calc(-1 * var(--oc-slide-y)); }
 .orgchart .node { position: absolute; box-sizing: border-box; width: var(--oc-node-width); min-height: var(--oc-row-height); background: white; border: 1px solid #b6cac1; border-radius: 6px; text-align: center; transition: left var(--oc-duration) ease, top var(--oc-duration) ease, background-color var(--oc-duration) ease; outline-offset: 4px; }
 .orgchart.oc-relating .node { transition: background-color var(--oc-duration) ease; }
 .orgchart .node:hover, .orgchart .node:focus-within { background: var(--oc-hover-color); border-color: #136b5a; z-index: 2; }
@@ -20,8 +28,9 @@
 .oc-controls { position: absolute; inset: 0; pointer-events: none; }
 .oc-branch-enter-active, .oc-branch-leave-active { transition: opacity var(--oc-duration) ease, transform var(--oc-duration) ease !important; }
 .oc-branch-enter-from, .oc-branch-leave-to { opacity: 0; transform: translate(var(--oc-branch-x), var(--oc-branch-y)); }
-.oc-link-enter-active, .oc-link-leave-active { transition: opacity var(--oc-duration) ease, transform var(--oc-duration) ease; }
-.oc-link-enter-from, .oc-link-leave-to { opacity: 0; transform: translate(var(--oc-branch-x), var(--oc-branch-y)); }
+.oc-link-leave-active:not(.oc-spouse-link) { display: none; }
+.oc-spouse-link.oc-link-enter-active, .oc-spouse-link.oc-link-leave-active { transition: opacity var(--oc-duration) ease, transform var(--oc-duration) ease; }
+.oc-spouse-link.oc-link-enter-from, .oc-spouse-link.oc-link-leave-to { opacity: 0; transform: translate(var(--oc-branch-x), var(--oc-branch-y)); }
 .oc-control { position: absolute; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; border: 1px solid #b6cac1; color: var(--oc-control-color); background: white; cursor: pointer; pointer-events: auto; padding: 0; }
 .oc-control:hover { background: var(--oc-control-hover-color); }
 .oc-control.oc-edge-top { left: calc(50% - 12px); top: -16px; }

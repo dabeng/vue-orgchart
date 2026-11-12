@@ -212,11 +212,11 @@ async function loadTeam() {
 
 ### showParent(node)
 
-必填 NodeRef；回傳 void。恢復一層父家庭與本節點兄弟家庭，沿路多次呼叫可恢復更多祖先，不是全部展開。
+必填 NodeRef；回傳 void。僅恢復一層父家庭，不恢復隱藏的兄弟家庭；沿路多次呼叫可恢復更多祖先，不是全部展開。
 
 ### hideChildren(node)
 
-必填 NodeRef；回傳 void。收合載入後代並保留深層狀態；僅一方擁有孩子時，配偶可用共享控制。
+必填 NodeRef；回傳 void。收合載入後代及深層分支；再次展開僅恢復直接子群組，與原版導覽一致。僅一方擁有孩子時，配偶可用共享控制。
 
 ### showChildren(node)
 
@@ -224,11 +224,11 @@ async function loadTeam() {
 
 ### hideSiblings(node, direction?)
 
-必填 NodeRef，可選 left / right，省略兩側；回傳 void。依邏輯順序隱藏家庭，保留目前配偶組；橫向排列時兩側呈上下。方法方向不依賴 toggleSiblingsResp。
+必填 NodeRef，可選 left / right，省略兩側；回傳 void。依邏輯順序隱藏家庭並收合其後代，保留目前配偶組；橫向排列時兩側呈上下。方法方向不依賴 toggleSiblingsResp。
 
 ### showSiblings(node, direction?)
 
-同 hideSiblings 參數；回傳 void。恢復一側或兩側家庭，不變更親子/配偶關係。
+同 hideSiblings 參數；回傳 void。恢復一側或兩側家庭，後代仍保持收合；直接父家庭若隱藏則一併恢復。不變更親子/配偶關係。
 
 ### expandAll(depth = 999)
 
