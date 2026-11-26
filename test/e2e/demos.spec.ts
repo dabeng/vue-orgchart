@@ -1,14 +1,131 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { demos } from '../../src/demo/demos'
 
+test('demo sidebar can be toggled without resetting the chart', async ({ page, isMobile }) => {
+  await page.goto('/#/data-prop-compact')
+  const navigation = page.getByRole('navigation', { name: 'Demos' })
+  const chart = page.locator('.orgchart-container')
+  const chartWidth = () => chart.evaluate(element => element.clientWidth)
+  const root = chart.locator('.node').first()
+  await expect(root).toBeVisible()
+  const originalWidth = await chartWidth()
+
+  if (isMobile) {
+    const menu = page.getByRole('button', { name: 'Demos', exact: true })
+    await expect(menu).toHaveAttribute('aria-expanded', 'false')
+    await expect(navigation).toBeHidden()
+    await menu.tap()
+    await expect(menu).toHaveAttribute('aria-expanded', 'true')
+    await expect(navigation.getByRole('link', { name: 'Compact branches' })).toHaveAttribute('aria-current', 'page')
+    await expect.poll(chartWidth).toBe(originalWidth)
+    await page.getByRole('button', { name: 'Close demos' }).tap()
+    await expect(menu).toHaveAttribute('aria-expanded', 'false')
+    await expect(navigation).toBeHidden()
+    await root.tap()
+  } else {
+    const collapse = page.getByRole('button', { name: 'Collapse demos' })
+    await expect(collapse).toHaveAttribute('aria-expanded', 'true')
+    await expect(navigation).toBeVisible()
+    await page.getByRole('textbox', { name: 'Search demos' }).fill('Compact branches')
+    await collapse.click()
+    const expand = page.getByRole('button', { name: 'Expand demos' })
+    await expect(expand).toHaveAttribute('aria-expanded', 'false')
+    await expect(navigation).toBeHidden()
+    await expect.poll(chartWidth).toBeGreaterThan(originalWidth + 190)
+    await root.click()
+    await expect(root).toHaveAttribute('aria-selected', 'true')
+    await expand.press('Enter')
+    await expect(collapse).toBeFocused()
+    await expect(navigation.getByRole('link', { name: 'Compact branches' })).toHaveAttribute('aria-current', 'page')
+    await expect(page.getByRole('textbox', { name: 'Search demos' })).toHaveValue('Compact branches')
+    await expect.poll(chartWidth).toBe(originalWidth)
+  }
+
+  await expect(root).toHaveAttribute('aria-selected', 'true')
+})
+
 function chartNodes(chart: Locator, ids: string[]) {
   return chart.locator(ids.map(id => `.node[id="${id}"]`).join(', '))
 }
+
+test('compact branches match the native grids and nested toggles', async ({ page, isMobile }) => {
+  await page.goto('/#/data-prop-compact')
+  const chart = page.getByRole('tree', { name: 'Organization chart' })
+  const visibleNodes = chart.getByRole('treeitem')
+  const frame = (id: string) => chart.locator(`[data-compact-group="${id}"]`)
+  const rows = (ids: string[]) => chartNodes(chart, ids).evaluateAll(nodes => {
+    const byRow = new Map<number, { left: number; label: string | null }[]>()
+    for (const node of nodes as HTMLElement[]) {
+      const row = byRow.get(node.offsetTop) ?? []
+      row.push({ left: node.offsetLeft, label: node.getAttribute('aria-label') }); byRow.set(node.offsetTop, row)
+    }
+    return [...byRow].sort(([first], [second]) => first - second).map(([, row]) => row.sort((first, second) => first.left - second.left).map(node => node.label))
+  })
+  async function toggle(name: string, expand: boolean) {
+    const node = chart.getByRole('treeitem', { name, exact: true })
+    if (isMobile) await node.tap(); else await node.hover()
+    const control = node.getByRole('button', { name: expand ? 'Expand compact layout' : 'Use compact layout' })
+    await expect.poll(() => control.evaluate((element, expand) => {
+      const bounds = element.getBoundingClientRect()
+      const cardEdge = element.closest('.node')!.querySelector(expand ? '.content' : '.title')!.getBoundingClientRect()
+      const triangle = getComputedStyle(element, '::before')
+      const edgeOffsets = expand ? [cardEdge.right - bounds.right, cardEdge.bottom - bounds.bottom] : [bounds.left - cardEdge.left, bounds.top - cardEdge.top]
+      return { edgeOffsets: edgeOffsets.map(Math.abs), size: [triangle.width, triangle.height], color: triangle.backgroundColor, opacity: triangle.opacity }
+    }, expand)).toEqual({ edgeOffsets: [0, 0], size: ['20px', '20px'], color: 'rgb(198, 40, 40)', opacity: '0.5' })
+    await control.evaluate(element => {
+      const owner = element.closest<HTMLElement>('.node')!
+      const tree = owner.closest('.orgchart')!
+      const key = owner.dataset.nodeKey!
+      delete owner.dataset.compactFirstFrame
+      element.addEventListener('click', () => requestAnimationFrame(() => {
+        const children = [...tree.querySelectorAll(`.node[data-parent="${CSS.escape(key)}"]`)]
+        const shown = children.filter(child => getComputedStyle(child).display !== 'none')
+        const fullyShown = shown.length === children.length && shown.every(child => getComputedStyle(child).opacity === '1')
+        const hasGroup = !!tree.querySelector(`[data-compact-group="${CSS.escape(key)}"]`)
+        const hasMotion = tree.getAnimations({ subtree: true }).some(animation => animation instanceof CSSTransition && ['left', 'top', 'opacity', 'transform'].includes(animation.transitionProperty))
+        owner.dataset.compactFirstFrame = JSON.stringify({ fullyShown, fullyHidden: shown.length === 0, hasGroup, hasMotion })
+      }), { once: true })
+    })
+    if (isMobile) await control.tap(); else await control.click()
+    await expect(node).toHaveAttribute('data-compact-first-frame', JSON.stringify({ fullyShown: expand, fullyHidden: !expand, hasGroup: expand, hasMotion: false }))
+    await expect(node).toHaveAttribute('aria-expanded', String(expand))
+    await expect(chart).not.toHaveClass(/oc-relating/)
+  }
+
+  await expect(chart.locator('.node')).toHaveCount(26)
+  await expect(visibleNodes).toHaveCount(7)
+  await expect(chartNodes(chart, ['1']).locator('.title')).toHaveCSS('background-color', 'rgb(19, 107, 90)')
+  await expect(chart.locator('path[data-target="2"]')).toHaveCSS('stroke', 'rgb(150, 173, 166)')
+  await expect(chartNodes(chart, ['2'])).toHaveCSS('box-shadow', 'rgb(182, 226, 215) 0px 0px 0px 5px')
+  await expect(chart.locator('.oc-compact-group')).toHaveCount(0)
+  await toggle('Bo Miao', true)
+  await expect(frame('2')).toHaveCSS('fill', 'rgb(182, 226, 215)')
+  await expect.poll(() => rows(['2', '8', '9', '10', '11', '12'])).toEqual([['Bo Miao', 'Fei Xuan'], ['Er Xuan', 'San Xuan'], ['Si Xuan', 'Wu Xuan']])
+  await toggle('Si Xuan', true)
+  await expect(frame('11')).toHaveClass(/oc-compact-nested/)
+  await expect(frame('11')).toHaveCSS('fill', 'rgb(255, 255, 255)')
+  await expect.poll(() => rows(['11', '13', '14', '15', '16'])).toEqual([['Si Xuan', 'Feng Shou'], ['Er Shou', 'San Shou'], ['Si Shou']])
+
+  await toggle('Bo Miao', false)
+  await expect(visibleNodes).toHaveCount(7)
+  await toggle('Bo Miao', true)
+  await expect(chart.getByRole('treeitem', { name: 'Si Xuan' })).toHaveAttribute('aria-expanded', 'false')
+  await expect(frame('11')).toHaveCount(0)
+  await toggle('Bo Miao', false)
+  await toggle('Hei Hei', true)
+  await expect.poll(() => rows(['5', ...Array.from({ length: 10 }, (_, index) => String(17 + index))])).toEqual([
+    ['Hei Hei', 'Dan Dan', 'Er Dan'], ['San Dan', 'Si Dan', 'Wu Dan'], ['Liu Dan', 'Qi Dan', 'Ba Dan'], ['Jiu Dan', 'Shi Dan'],
+  ])
+  await expect(visibleNodes).toHaveCount(17)
+  await toggle('Hei Hei', false)
+  await expect(visibleNodes).toHaveCount(7)
+})
 
 async function checkChildToggles(page: Page, anchorId: string, childIds: string[], initiallyExpanded = true, keys: (string | null)[] = [null, 'Enter', null, 'Space']) {
   const chart = page.locator('.orgchart')
   const anchor = chartNodes(chart, [anchorId])
   const children = chartNodes(chart, childIds)
+  const compact = await anchor.getAttribute('data-layout') === 'compact'
   await expect(children).toHaveCount(childIds.length)
   await expect(children.filter({ visible: true })).toHaveCount(initiallyExpanded ? childIds.length : 0)
 
@@ -16,7 +133,7 @@ async function checkChildToggles(page: Page, anchorId: string, childIds: string[
     const expanded = index % 2 === 0 ? !initiallyExpanded : initiallyExpanded
     await expect(anchor).toBeVisible()
     await anchor.focus()
-    const control = anchor.getByRole('button', { name: expanded ? 'Expand children' : 'Collapse children', exact: true })
+    const control = anchor.getByRole('button', { name: compact ? (expanded ? 'Expand compact layout' : 'Use compact layout') : (expanded ? 'Expand children' : 'Collapse children'), exact: true })
     await expect(control).toHaveAttribute('aria-expanded', String(!expanded))
     if (key) await control.press(key)
     else await control.click()
@@ -104,6 +221,9 @@ for (const demo of demos) {
           await checkChildToggles(page, '1', ['1-a', '1-c'])
         } else if (demo.id === 'vertical-level') {
           await checkChildToggles(page, '3', ['4', '5'])
+        } else if (demo.id === 'data-prop-compact') {
+          await expect(chart.locator('.node:visible')).toHaveCount(7)
+          await checkChildToggles(page, '2', ['8', '9', '10', '11', '12'], false)
         } else if (family) {
           await checkChildToggles(page, '1', ['2', '3', '9', '10'])
         } else if (['default-collapsed', 'expand-to-given-depth'].includes(demo.id)) {
@@ -124,8 +244,8 @@ for (const demo of demos) {
         await expect(chartNodes(chart, ['ancestor-1'])).not.toBeVisible()
       } else {
         await checkRelatedToggle(chart, '3', family ? ['2', '10'] : ['2'], 'Toggle left siblings')
-        await checkRelatedToggle(chart, family ? '3' : '2', family ? ['2', '10'] : ['3'], 'Toggle right siblings')
-        await checkRelatedToggle(chart, family ? '3' : '2', family ? ['1', '8'] : ['1'], 'Hide ancestors', 'Show parent')
+        if (branchLayout !== 'compact') await checkRelatedToggle(chart, family ? '3' : '2', family ? ['2', '10'] : ['3'], 'Toggle right siblings')
+        await checkRelatedToggle(chart, family || branchLayout === 'compact' ? '3' : '2', family ? ['1', '8'] : ['1'], 'Hide ancestors', 'Show parent')
       }
     }
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)

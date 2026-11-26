@@ -20,7 +20,7 @@ describe('export', () => {
   it('normalizes invalid PDF scale and portrait orientation', async () => { const value = canvas(); value.width = 100; value.height = 200; await exportPDF(value, 'portrait', 0); expect(mocks.pdf).toHaveBeenCalledWith(expect.objectContaining({ format: [100, 200], orientation: 'portrait' })) })
   it('captures full geometry without navigation transforms or controls', async () => {
     mocks.capture.mockResolvedValue(canvas()); const chart = document.createElement('div'); chart.innerHTML = '<button class="oc-controls"></button>'
-    await captureChart(chart, resolveOptions({ exportScale: 0 }), { width: 600, height: 300, boxes: new Map(), modes: new Map(), links: [] })
+    await captureChart(chart, resolveOptions({ exportScale: 0 }), { width: 600, height: 300, boxes: new Map(), modes: new Map(), links: [], compactGroups: new Map() })
     const options = mocks.capture.mock.calls[0]![1]; expect(options).toMatchObject({ scale: 1, useCORS: true, width: 600, height: 300 }); options.onclone(document, chart); expect(chart.style.transform).toBe('none'); expect((chart.firstElementChild as HTMLElement).style.display).toBe('none')
   })
   it('returns captured canvas and clears busy state on success', async () => { const value = canvas(); mocks.capture.mockResolvedValue(value); const { wrapper, api } = render(); expect(await api.export('team')).toBe(value); await nextTick(); expect(wrapper.find('.oc-export-mask').exists()).toBe(false); expect(wrapper.emitted('export')).toHaveLength(1) })

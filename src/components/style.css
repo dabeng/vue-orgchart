@@ -16,6 +16,7 @@
 .orgchart.l2r .oc-motion-right, .orgchart.r2l .oc-motion-right { --oc-branch-x: 0px; --oc-branch-y: calc(-1 * var(--oc-slide-y)); }
 .orgchart .node { position: absolute; box-sizing: border-box; width: var(--oc-node-width); min-height: var(--oc-row-height); background: white; border: 1px solid #b6cac1; border-radius: 6px; text-align: center; transition: left var(--oc-duration) ease, top var(--oc-duration) ease, background-color var(--oc-duration) ease; outline-offset: 4px; }
 .orgchart.oc-relating .node { transition: background-color var(--oc-duration) ease; }
+.orgchart.oc-instant-compact .node { transition: none !important; }
 .orgchart .node:hover, .orgchart .node:focus-within { background: var(--oc-hover-color); border-color: #136b5a; z-index: 2; }
 .orgchart .node.focused { outline: 2px solid #136b5a; z-index: 2; }
 .orgchart .node:focus-visible, .oc-control:focus-visible, .oc-minimap:focus-visible { outline: 2px solid #136b5a; }
@@ -25,6 +26,8 @@
 .oc-connections { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
 .oc-connections path { fill: none; stroke: var(--oc-line-color); stroke-width: 1.5; stroke-linejoin: round; }
 .oc-connections .oc-spouse-link { stroke: #c47880; stroke-width: 2; }
+.oc-compact-group { fill: #eee; }
+.oc-compact-nested { fill: #fff; }
 .oc-controls { position: absolute; inset: 0; pointer-events: none; }
 .oc-branch-enter-active, .oc-branch-leave-active { transition: opacity var(--oc-duration) ease, transform var(--oc-duration) ease !important; }
 .oc-branch-enter-from, .oc-branch-leave-to { opacity: 0; transform: translate(var(--oc-branch-x), var(--oc-branch-y)); }
@@ -33,6 +36,12 @@
 .oc-spouse-link.oc-link-enter-from, .oc-spouse-link.oc-link-leave-to { opacity: 0; transform: translate(var(--oc-branch-x), var(--oc-branch-y)); }
 .oc-control { position: absolute; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; border: 1px solid #b6cac1; color: var(--oc-control-color); background: white; cursor: pointer; pointer-events: auto; padding: 0; }
 .oc-control:hover { background: var(--oc-control-hover-color); }
+.oc-control.oc-compact-toggle { border: 0; border-radius: 0; background: transparent; }
+.oc-compact-toggle::before { content: ''; width: 20px; height: 20px; background: currentColor; }
+.oc-compact-toggle[aria-expanded=true] { top: 0; left: 0; place-items: start; }
+.oc-compact-toggle[aria-expanded=true]::before { clip-path: polygon(0 0, 100% 0, 0 100%); }
+.oc-compact-toggle[aria-expanded=false] { bottom: 0; right: 0; place-items: end; }
+.oc-compact-toggle[aria-expanded=false]::before { clip-path: polygon(100% 0, 100% 100%, 0 100%); }
 .oc-control.oc-edge-top { left: calc(50% - 12px); top: -16px; }
 .oc-control.oc-edge-bottom { left: calc(50% - 12px); bottom: -16px; }
 .oc-control.oc-edge-left { left: -16px; top: calc(50% - 12px); }

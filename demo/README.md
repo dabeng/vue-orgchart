@@ -6,7 +6,7 @@ The demo application lives in [src/demo](../src/demo/), separate from the publis
 
 - [main.js](../src/demo/main.js), [App.vue](../src/demo/App.vue), and [app.css](../src/demo/app.css) provide the demo entry, shared workbench, and styles.
 - [demos.ts](../src/demo/demos.ts) defines the route catalogue, datasets, and chart options.
-- [demo-source.ts](../src/demo/demo-source.ts) generates copyable examples. It shares [demo-highlights.ts](../src/demo/demo-highlights.ts) and [GeoMap.vue](../src/demo/GeoMap.vue) with the live demos.
+- [demo-source.ts](../src/demo/demo-source.ts) generates copyable examples. It shares [demo-highlights.ts](../src/demo/demo-highlights.ts), [compact.css](../src/demo/compact.css), and [GeoMap.vue](../src/demo/GeoMap.vue) with the live demos.
 
 | Original page / route ID | Vue scenario |
 | --- | --- |
@@ -21,7 +21,7 @@ The demo application lives in [src/demo](../src/demo/), separate from the publis
 | `right2left` | r2l direction |
 | `vertical-level` | verticalLevel 2 |
 | `data-prop-hybrid` | One hybrid branch |
-| `data-prop-compact` | One compact branch |
+| `data-prop-compact` | Native two- and three-column branch grids, including nested and callback-selected branches |
 | `level-offset` | Visual depth offset |
 | `nodes-of-different-widths` | 230px / 130px children |
 | `responsive-design` | Responsive viewport, pan/zoom/minimap |

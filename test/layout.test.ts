@@ -5,6 +5,21 @@ import { ChartModel } from '../src/components/tree'
 import type { Direction, OrgNode } from '../src/components/types'
 const data: OrgNode = { id: 'a', children: [{ id: 'b', width: 220, children: [{ id: 'd' }] }, { id: 'c', width: 100 }] }
 describe('layout and option contracts', () => {
+  it('puts a compact owner in the first grid cell and connects to the group edge', () => {
+    const model = new ChartModel({ id: 'root', children: [{ id: 'branch', children: [
+      { id: 'first' }, { id: 'second' }, { id: 'third' }, { id: 'nested', children: [{ id: 'leaf' }] }, { id: 'fifth' },
+    ] }] })
+    const { boxes, links, compactGroups } = layoutChart(model, resolveOptions({ compact: node => Array.isArray(node.children) && node.children.length >= 5 }), () => true, () => true)
+    const branch = boxes.get('branch')!; const first = boxes.get('first')!; const second = boxes.get('second')!
+    const frame = compactGroups.get('branch')!
+    expect(first.y).toBe(branch.y)
+    expect(first.x).toBeGreaterThan(branch.x + branch.width)
+    expect(second.x).toBe(branch.x)
+    expect(second.y).toBeGreaterThan(branch.y + branch.height)
+    expect(links.map(link => [link.source, link.target, link.points.at(-1)])).toEqual([['root', 'branch', [frame.x + frame.width / 2, frame.y]]])
+    expect(compactGroups.get('nested')?.depth).toBe(1)
+  })
+
   it.each(['t2b', 'b2t', 'l2r', 'r2l'] as Direction[])('positions nodes without overlap in %s', direction => {
     const layout = layoutChart(new ChartModel(data), resolveOptions({ direction }), () => true, () => true)
     const boxes = [...layout.boxes.values()]

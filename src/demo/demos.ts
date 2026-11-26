@@ -75,6 +75,7 @@ export function family(): OrgNode[][] {
     [{ id: '10', name: 'Hong Miao', title: 'Aunt', gender: 'female' }],
   ] }]]
 }
+export function isDenseCompactBranch(node: OrgNode) { return Array.isArray(node.children) && node.children.length >= 10 }
 export function buildDemo(id: string): { data: Datasource; options: ChartOptions; demo: Demo } {
   const demo = demos.find(item => item.id === id) ?? demos[0]!
   const options: ChartOptions = { nodeContent: 'title', pan: false, zoom: false, minimap: false, draggable: false, direction: 't2b', visibleLevel: 999 }
@@ -120,7 +121,31 @@ export function buildDemo(id: string): { data: Datasource; options: ChartOptions
   }
   if (id === 'edit-hybrid-chart' || id === 'drag-drop-hybrid-chart' || id === 'options-hybrid-navigation') options.verticalLevel = 2
   if (id === 'data-prop-hybrid') children[0]!.hybrid = true
-  if (id === 'data-prop-compact') children[0]!.compact = true
+  if (id === 'data-prop-compact') {
+    options.compact = isDenseCompactBranch
+    options.chartClass = 'demo-compact'
+    options.icons = { theme: 'demo-compact-icon', parentNode: 'demo-compact-parent' }
+    data = { id: '1', name: 'Lao Lao', title: 'general manager', children: [
+      { id: '2', name: 'Bo Miao', title: 'department manager', compact: true, collapsed: true, children: [
+        { id: '8', name: 'Fei Xuan', title: 'engineer' },
+        { id: '9', name: 'Er Xuan', title: 'engineer' },
+        { id: '10', name: 'San Xuan', title: 'engineer' },
+        { id: '11', name: 'Si Xuan', title: 'engineer', compact: true, collapsed: true, children: [
+          { id: '13', name: 'Feng Shou', title: 'engineer' },
+          { id: '14', name: 'Er Shou', title: 'engineer' },
+          { id: '15', name: 'San Shou', title: 'engineer' },
+          { id: '16', name: 'Si Shou', title: 'engineer' },
+        ] },
+        { id: '12', name: 'Wu Xuan', title: 'engineer' },
+      ] },
+      { id: '3', name: 'Su Miao', title: 'department manager', children: [
+        { id: '4', name: 'Tie Hua', title: 'senior engineer' },
+        { id: '5', name: 'Hei Hei', title: 'senior engineer', collapsed: true, children: ['Dan Dan', 'Er Dan', 'San Dan', 'Si Dan', 'Wu Dan', 'Liu Dan', 'Qi Dan', 'Ba Dan', 'Jiu Dan', 'Shi Dan'].map((name, index) => ({ id: String(17 + index), name, title: 'engineer' })) },
+        { id: '7', name: 'Pang Pang', title: 'senior engineer' },
+      ] },
+      { id: '6', name: 'Hong Miao', title: 'department manager' },
+    ] }
+  }
   if (id === 'options-compact-drag') options.compact = node => node.id === '2'
   if (id === 'default-collapsed') children[0]!.collapsed = true
   if (id === 'expand-to-given-depth') options.visibleLevel = 2

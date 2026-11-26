@@ -1,0 +1,9 @@
+.orgchart.demo-compact { --oc-node-width: 130px; --oc-row-height: 40px; --demo-compact-group-color: #b6e2d7; }
+.orgchart.demo-compact .node { border-radius: 4px; font-family: Arial, sans-serif; }
+.orgchart.demo-compact .title { position: relative; min-height: 19px; padding: 2px 15px; border-radius: 3px 3px 0 0; font-size: 12px; }
+.orgchart.demo-compact .demo-compact-parent { position: absolute; left: 3px; width: 8px; height: 7px; background: repeating-linear-gradient(#fff 0 1px, transparent 1px 3px); }
+.orgchart.demo-compact .content { display: grid; place-items: center; min-height: 19px; padding: 1px 4px; font-size: 10px; }
+.orgchart.demo-compact .node[data-layout=compact][aria-expanded=false] { box-shadow: 0 0 0 5px var(--demo-compact-group-color); }
+.orgchart.demo-compact .oc-compact-group:not(.oc-compact-nested) { fill: var(--demo-compact-group-color); }
+.orgchart.demo-compact .oc-compact-toggle { color: #c62828; }
+.orgchart.demo-compact .oc-compact-toggle::before { opacity: .5; }

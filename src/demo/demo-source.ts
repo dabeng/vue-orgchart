@@ -2,10 +2,12 @@ import { buildDemo, reloadDatasources } from './demos'
 import { ChartModel } from '../components/tree'
 import mapSource from './GeoMap.vue?raw'
 import highlightSource from './demo-highlights.ts?raw'
+import compactStyles from './compact.css?raw'
 
 export interface DemoSourceFile { name: string; language: string; code: string }
 
 const callbacks: Record<string, Record<string, string>> = {
+  'data-prop-compact': { compact: `(node) => Array.isArray(node.children) && node.children.length >= 10` },
   'options-compact-drag': { compact: `(node) => node.id === '2'` },
   'drag-drop': { dropCriteria: `(dragged, _parent, target) => !(dragged.querySelector('.content')?.textContent?.includes('manager') && target.querySelector('.content')?.textContent?.includes('engineer'))` },
   'option-createNode': { createNode: `(element, node) => {
@@ -81,6 +83,7 @@ export function demoSource(id: string): DemoSourceFile[] {
   const controls: string[] = []
   const attributes: string[] = []
   const styles = ['.demo-chart { height: 480px; max-width: 100%; }']
+  if (id === 'data-prop-compact') styles.push(compactStyles.trim())
   const customTemplate = id === 'custom-template' || id === 'options-horizontal-template'
   const functions = callbacks[customTemplate ? 'custom-template' : id] ?? {}
   const optionCode = Object.entries(options).map(([key, value]) => `  ${key}: ${typeof value === 'function' ? functions[key] : JSON.stringify(value)}`).join(',\n')

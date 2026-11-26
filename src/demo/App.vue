@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch, watchPostEffect } from 'vue'
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, Code, Copy, Download, Expand, Focus, ListTree, Menu, Minus, Plus, RefreshCw, Route, Search, Trash2, X, ZoomIn, ZoomOut } from '@lucide/vue'
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, Code, Copy, Download, Expand, Focus, ListTree, Menu, Minus, PanelLeftClose, PanelLeftOpen, Plus, RefreshCw, Route, Search, Trash2, X, ZoomIn, ZoomOut } from '@lucide/vue'
 import OrgChart from '../components/index.js'
 import { ChartModel } from '../components/tree'
-import { buildDemo, demos, reloadDatasources } from './demos'
+import { buildDemo, demos, isDenseCompactBranch, reloadDatasources } from './demos'
 import { demoSource } from './demo-source'
 import { markRelatedNodes, markReportingPath, relationLegend } from './demo-highlights'
 import type { ChartOptions, Datasource, Direction, OrgNode } from '../components/types'
 import type { OrgChartInstance } from '../components/useChart'
 import './app.css'
+import './compact.css'
 const GeoMap = defineAsyncComponent(() => import('./GeoMap.vue'))
 function routeId() { return location.hash.replace(/^#\/?/, '') || new URLSearchParams(location.search).get('demo') || location.pathname.match(/\/demo\/([^/]+)\.html$/)?.[1] || 'local-datasource' }
 const currentId = ref(routeId()); const chart = ref<OrgChartInstance | null>(null)
@@ -17,6 +18,8 @@ const currentDemo = computed(() => demos.find(demo => demo.id === currentId.valu
 const reloadIndex = ref(0)
 const search = ref(''); const filter = ref(''); const selected = ref<OrgNode | null>(null)
 const sidebarOpen = ref(false); const inspectorTab = ref('hierarchy'); const snapshot = shallowRef<OrgNode | OrgNode[][] | string | null>(null)
+const sidebarCollapsed = ref(false)
+const sidebarToggleLabel = computed(() => sidebarCollapsed.value ? 'Expand demos' : 'Collapse demos')
 const flat = shallowRef<OrgNode[] | string>([]); const sourceEditor = ref(''); const error = ref(''); const pending = ref(false); const elapsed = ref(0)
 const nodeDrafts = ref([{ name: 'New colleague', title: 'Engineer' }])
 const validDrafts = computed(() => nodeDrafts.value.filter(draft => draft.name.trim()))
@@ -140,7 +143,7 @@ function applySource() {
     datasource.value = parsed; selected.value = null
   })
 }
-function changeLayout(event: Event) { const mode = (event.target as HTMLSelectElement).value; chartOptions.value = { ...chartOptions.value, compact: mode === 'compact', verticalLevel: mode === 'vertical' ? (currentId.value === 'vertical-level' ? 3 : 2) : undefined } }
+function changeLayout(event: Event) { const mode = (event.target as HTMLSelectElement).value; chartOptions.value = { ...chartOptions.value, compact: mode === 'compact' || (currentId.value === 'data-prop-compact' && isDenseCompactBranch), verticalLevel: mode === 'vertical' ? (currentId.value === 'vertical-level' ? 3 : 2) : undefined } }
 function changeDirection(direction: Direction) { chartOptions.value = { ...chartOptions.value, direction } }
 function remove() { if (selectedId.value != null) run(() => { chart.value!.removeNodes(selectedId.value!); selected.value = null }) }
 function routeChanged() { currentId.value = routeId() }
@@ -149,15 +152,25 @@ onMounted(() => { window.addEventListener('hashchange', routeChanged); window.ad
 onBeforeUnmount(() => { loadController?.abort(); window.removeEventListener('hashchange', routeChanged); window.removeEventListener('popstate', routeChanged) })
 </script>
 <template>
-  <div class="workbench">
-    <header class="app-header"><button class="icon-button mobile-menu" title="Demos" aria-label="Demos" @click="sidebarOpen = !sidebarOpen"><Menu :size="20" /></button><img src="/logo.png" width="30" height="30" alt="" /><h1>Vue OrgChart</h1><span class="version">Vue 3</span><a class="repository" href="https://github.com/dabeng/vue-orgchart" target="_blank" rel="noreferrer">GitHub</a></header>
-    <aside class="sidebar" :class="{ open: sidebarOpen }"><div class="sidebar-heading"><strong>Demos</strong><span>{{ demos.length }}</span><button class="icon-button mobile-menu" title="Close demos" aria-label="Close demos" @click="sidebarOpen = false"><X :size="16" /></button></div><label class="search-field"><Search :size="16" /><input v-model="search" placeholder="Search demos" aria-label="Search demos" /></label><nav><section v-for="group in groups" :key="group.category"><h2>{{ group.category }}</h2><a v-for="demo in group.demos" :key="demo.id" :href="`#/${demo.id}`" :class="{ active: currentId === demo.id }" :aria-current="currentId === demo.id ? 'page' : undefined">{{ demo.name }}<ArrowRight v-if="currentId === demo.id" :size="14" /></a></section></nav></aside>
+  <div class="workbench" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
+    <header class="app-header">
+      <button class="icon-button desktop-menu" :title="sidebarToggleLabel" :aria-label="sidebarToggleLabel" :aria-expanded="!sidebarCollapsed" aria-controls="demo-sidebar" @click="sidebarCollapsed = !sidebarCollapsed">
+        <PanelLeftOpen v-if="sidebarCollapsed" :size="20" aria-hidden="true" /><PanelLeftClose v-else :size="20" aria-hidden="true" />
+      </button>
+      <button class="icon-button mobile-menu" title="Demos" aria-label="Demos" :aria-expanded="sidebarOpen" aria-controls="demo-sidebar" @click="sidebarOpen = !sidebarOpen"><Menu :size="20" aria-hidden="true" /></button>
+      <img src="/logo.png" width="30" height="30" alt="" /><h1>Vue OrgChart</h1><span class="version">Vue 3</span><a class="repository" href="https://github.com/dabeng/vue-orgchart" target="_blank" rel="noreferrer">GitHub</a>
+    </header>
+    <aside id="demo-sidebar" class="sidebar" :class="{ open: sidebarOpen }">
+      <div class="sidebar-heading"><strong>Demos</strong><span>{{ demos.length }}</span><button class="icon-button mobile-menu" title="Close demos" aria-label="Close demos" @click="sidebarOpen = false"><X :size="16" /></button></div>
+      <label class="search-field"><Search :size="16" /><input v-model="search" placeholder="Search demos" aria-label="Search demos" /></label>
+      <nav aria-label="Demos"><section v-for="group in groups" :key="group.category"><h2>{{ group.category }}</h2><a v-for="demo in group.demos" :key="demo.id" :href="`#/${demo.id}`" :class="{ active: currentId === demo.id }" :aria-current="currentId === demo.id ? 'page' : undefined">{{ demo.name }}<ArrowRight v-if="currentId === demo.id" :size="14" /></a></section></nav>
+    </aside>
     <main class="main-panel">
       <div class="view-heading">
         <div><span class="category-label">{{ currentDemo.category }}</span><h2>{{ currentDemo.name }}</h2><p class="demo-subtitle">{{ currentDemo.subtitle }}</p></div>
         <div class="metrics"><span><b>{{ stats.nodes.toLocaleString('en-US') }}</b> nodes</span><span v-if="stats.households"><b>{{ stats.households }}</b> families</span><span><b>{{ elapsed }}</b> ms</span></div>
       </div>
-      <div class="toolbar"><div class="direction-control" role="group" aria-label="Direction"><button v-for="[direction, icon, label] in [['t2b', ArrowDown, 'Top to bottom'], ['b2t', ArrowUp, 'Bottom to top'], ['l2r', ArrowRight, 'Left to right'], ['r2l', ArrowLeft, 'Right to left']]" :key="String(direction)" class="icon-button" :class="{ active: chartOptions.direction === direction }" :title="String(label)" :aria-label="String(label)" @click="changeDirection(direction as Direction)"><component :is="icon" :size="17" /></button></div><select aria-label="Layout" @change="changeLayout"><option value="horizontal">Hierarchy</option><option value="vertical" :selected="!!chartOptions.verticalLevel">Vertical</option><option value="compact" :selected="!!chartOptions.compact">Compact</option></select><span class="toolbar-separator" /><button class="icon-button" title="Zoom out" aria-label="Zoom out" @click="chart?.setChartScale(.8)"><ZoomOut :size="18" /></button><button class="icon-button" title="Zoom in" aria-label="Zoom in" @click="chart?.setChartScale(1.2)"><ZoomIn :size="18" /></button><button class="icon-button" title="Reset view" aria-label="Reset view" @click="chart?.resetView()"><Focus :size="18" /></button><button class="icon-button" title="Expand all" aria-label="Expand all" @click="run(() => chart?.expandAll())"><Expand :size="18" /></button><button class="icon-button" title="Collapse all" aria-label="Collapse all" @click="run(() => chart?.collapseAll())"><Minus :size="18" /></button><span class="toolbar-spacer" /><button class="icon-button" title="View source" aria-label="View source" @click="sourcePanel?.scrollIntoView({ behavior: 'smooth', block: 'start' })"><Code :size="18" /></button><select v-model="format" aria-label="Export format"><option value="png">PNG</option><option value="pdf">PDF</option></select><button class="command-button" :disabled="!stats.nodes" @click="run(() => chart!.export('OrgChart', format))"><Download :size="16" />Export</button></div>
+      <div class="toolbar"><div class="direction-control" role="group" aria-label="Direction"><button v-for="[direction, icon, label] in [['t2b', ArrowDown, 'Top to bottom'], ['b2t', ArrowUp, 'Bottom to top'], ['l2r', ArrowRight, 'Left to right'], ['r2l', ArrowLeft, 'Right to left']]" :key="String(direction)" class="icon-button" :class="{ active: chartOptions.direction === direction }" :title="String(label)" :aria-label="String(label)" @click="changeDirection(direction as Direction)"><component :is="icon" :size="17" /></button></div><select aria-label="Layout" @change="changeLayout"><option value="horizontal">Hierarchy</option><option value="vertical" :selected="!!chartOptions.verticalLevel">Vertical</option><option value="compact" :selected="chartOptions.compact === true">Compact</option></select><span class="toolbar-separator" /><button class="icon-button" title="Zoom out" aria-label="Zoom out" @click="chart?.setChartScale(.8)"><ZoomOut :size="18" /></button><button class="icon-button" title="Zoom in" aria-label="Zoom in" @click="chart?.setChartScale(1.2)"><ZoomIn :size="18" /></button><button class="icon-button" title="Reset view" aria-label="Reset view" @click="chart?.resetView()"><Focus :size="18" /></button><button class="icon-button" title="Expand all" aria-label="Expand all" @click="run(() => chart?.expandAll())"><Expand :size="18" /></button><button class="icon-button" title="Collapse all" aria-label="Collapse all" @click="run(() => chart?.collapseAll())"><Minus :size="18" /></button><span class="toolbar-spacer" /><button class="icon-button" title="View source" aria-label="View source" @click="sourcePanel?.scrollIntoView({ behavior: 'smooth', block: 'start' })"><Code :size="18" /></button><select v-model="format" aria-label="Export format"><option value="png">PNG</option><option value="pdf">PDF</option></select><button class="command-button" :disabled="!stats.nodes" @click="run(() => chart!.export('OrgChart', format))"><Download :size="16" />Export</button></div>
       <div class="settings-row">
         <div v-if="currentId === 'reload-data'" class="demo-actions" role="group" aria-label="Reload data">
           <span>Reload data</span><button v-for="(_, index) in reloadDatasources" :key="index" class="command-button" :aria-pressed="reloadIndex === index" @click="reloadChart(index)">Chart {{ index + 1 }}</button>

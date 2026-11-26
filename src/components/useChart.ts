@@ -23,6 +23,8 @@ export function useChart(props: ChartOptions, emit: (event: ChartEvent, ...args:
   let initialPosition = true
   const dragging = ref<string | null>(null); const dropTarget = ref<string | null>(null); const panning = ref(false)
   const relating = ref(false)
+  const instantCompact = ref(false)
+  let compactFrame: number | undefined
   type RelationMotion = 'children' | 'parent' | 'left' | 'right'
   const relationMotions = shallowRef(new Map<string, RelationMotion>())
   const leavingRelations = shallowRef<{ layout: Layout; anchor: string; keys: Set<string>; preserveAnchor: boolean } | null>(null)
@@ -60,7 +62,11 @@ export function useChart(props: ChartOptions, emit: (event: ChartEvent, ...args:
   let pinchDistance = 0
   let suppressBackgroundClick = false
   let mapGesture: { x: number; y: number; originX: number; originY: number; ratio: number } | null = null
-  function cancelRelationTransition() { relationRevision++; leavingRelations.value = null; relationMotions.value = new Map(); relating.value = false }
+  function clearCompactUpdate() {
+    if (compactFrame != null) cancelAnimationFrame(compactFrame)
+    compactFrame = undefined; instantCompact.value = false
+  }
+  function cancelRelationTransition() { clearCompactUpdate(); relationRevision++; leavingRelations.value = null; relationMotions.value = new Map(); relating.value = false }
   function initializeVisibility() {
     cancelRelationTransition()
     collapsed.clear(); hiddenBranches.clear(); hiddenNodes.clear(); keyword.value = ''
@@ -98,6 +104,7 @@ export function useChart(props: ChartOptions, emit: (event: ChartEvent, ...args:
     })
   }
   function changeRelations(anchor: string, change: () => void, motions = new Map<string, RelationMotion>(), preserveAnchor = false) {
+    clearCompactUpdate()
     const previous = leavingRelations.value?.layout ?? layout.value
     relationMotions.value = new Map([...relationMotions.value, ...motions])
     relating.value = true; relationRevision++
@@ -120,20 +127,30 @@ export function useChart(props: ChartOptions, emit: (event: ChartEvent, ...args:
     for (const group of node.children) for (const child of group) visitBranch(child, member => motions.set(member.key, 'children'))
     return motions
   }
+  function changeChildRelations(node: NormalizedNode, change: () => void) {
+    if (targetLayout.value.modes.get(node.key) !== 'compact') {
+      changeRelations(node.key, change, childMotions(node), true)
+      return
+    }
+    cancelRelationTransition()
+    instantCompact.value = true
+    change()
+    compactFrame = requestAnimationFrame(() => { compactFrame = requestAnimationFrame(clearCompactUpdate) })
+  }
   function siblingMotions(node: NormalizedNode, direction?: 'left' | 'right') {
     const motions = new Map<string, RelationMotion>()
     for (const side of ['left', 'right'] as const) if (!direction || side === direction) for (const member of siblingGroups(node, side).flat()) visitBranch(member, descendant => motions.set(descendant.key, side))
     return motions
   }
   function hideChildren(reference: NodeRef) {
-    const node = owner(model.value.resolve(reference)); changeRelations(node.key, () => {
+    const node = owner(model.value.resolve(reference)); changeChildRelations(node, () => {
       visitBranch(node, descendant => { if (descendant.children.length) collapsed.add(descendant.key) })
       collapsed.add(node.key)
-    }, childMotions(node), true)
+    })
     if (selected.value && model.value.ancestors(model.value.resolve(selected.value)).includes(node)) { selected.value = node.key; element(node.key)?.focus() }
     visibilityEvent(node, 'children', false)
   }
-  function showChildren(reference: NodeRef) { const node = owner(model.value.resolve(reference)); changeRelations(node.key, () => { collapsed.delete(node.key); zeroHidden.value = false; model.value.children(node).forEach(child => hiddenBranches.delete(child.key)) }, childMotions(node), true); visibilityEvent(node, 'children', true) }
+  function showChildren(reference: NodeRef) { const node = owner(model.value.resolve(reference)); changeChildRelations(node, () => { collapsed.delete(node.key); zeroHidden.value = false; model.value.children(node).forEach(child => hiddenBranches.delete(child.key)) }); visibilityEvent(node, 'children', true) }
   function siblingGroups(node: NormalizedNode, direction?: 'left' | 'right') {
     const groups = model.value.groups(node); const index = groups.findIndex(group => group.includes(node))
     return groups.filter((_, groupIndex) => direction === 'left' ? groupIndex < index : direction === 'right' ? groupIndex > index : groupIndex !== index)
@@ -341,7 +358,7 @@ export function useChart(props: ChartOptions, emit: (event: ChartEvent, ...args:
   }
   onMounted(() => { viewport.scale = Math.min(options.value.zoominLimit, Math.max(options.value.zoomoutLimit, 1)); observe(); emit('init', chart.value); if (chart.value) options.value.initCompleted?.(chart.value) })
   onBeforeUnmount(destroy); watch(layout, () => nextTick(observe))
-  return { api, options, model, revision, host, chart, disposed, selected, allNodes, layout, transform, viewport, dimensions, minimapViewport, exporting, loading, dragging, dropTarget, panning, relating, relationMotions, relationTransitionEnd, keyword, nodeVisible, owner, getNodeState, toggleChildren, toggleParent, toggleSiblings, siblingGroups, select, deselect, backgroundClick, dragStart, dragOver, dragLeave, dragEnd, drop, touchStart, wheel, pointerDown, pointerMove, pointerUp, minimapDown, minimapMove, minimapUp, updateMinimap, register }
+  return { api, options, model, revision, host, chart, disposed, selected, allNodes, layout, transform, viewport, dimensions, minimapViewport, exporting, loading, dragging, dropTarget, panning, relating, instantCompact, relationMotions, relationTransitionEnd, keyword, nodeVisible, owner, getNodeState, toggleChildren, toggleParent, toggleSiblings, siblingGroups, select, deselect, backgroundClick, dragStart, dragOver, dragLeave, dragEnd, drop, touchStart, wheel, pointerDown, pointerMove, pointerUp, minimapDown, minimapMove, minimapUp, updateMinimap, register }
 }
 export type ChartContext = ReturnType<typeof useChart>
 export type OrgChartInstance = ChartContext['api']

@@ -41,6 +41,11 @@ body { margin: 0; } button, input, select, textarea { font: inherit; } button { 
 .demo-icon { font-style: normal; } .icon-parent::before { content: '\25c6'; } .icon-plus::before { content: '+'; } .icon-minus::before { content: '-'; } .icon-up::before { content: '\2191'; } .icon-down::before { content: '\2193'; } .icon-left::before { content: '\2190'; } .icon-right::before { content: '\2192'; }
 .error-banner { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: #fbecef; color: #a44551; font-size: 12px; } .loading-banner { padding: 10px; font-size: 12px; color: var(--muted); }
 .map-section { margin-top: 16px; } .map-section header { padding: 10px 0; font-size: 12px; } .office-map { height: 280px; background: #e7eef0; border: 1px solid var(--border); }
-footer { display: flex; justify-content: space-between; margin-top: 20px; font-size: 10px; color: #829287; } .mobile-menu { display: none; }
+footer { display: flex; justify-content: space-between; margin-top: 20px; font-size: 10px; color: #829287; } .desktop-menu, .mobile-menu { display: none; }
 @media (max-width: 1000px) { .workbench { grid-template-columns: 200px minmax(0, 1fr); } .main-panel { padding: 20px 18px; } .metrics { gap: 8px; } }
+@media (width > 760px) {
+	.desktop-menu { display: inline-grid; }
+	.workbench.sidebar-collapsed { grid-template-columns: minmax(0, 1fr); }
+	.sidebar-collapsed .sidebar { display: none; }
+}
 @media (max-width: 760px) { .workbench { grid-template-columns: minmax(0, 1fr); grid-template-rows: 56px 1fr; } .app-header { padding: 0 12px; gap: 8px; } .app-header h1 { font-size: 19px; } .version { padding-left: 8px; } .sidebar { display: none; position: fixed; top: 56px; bottom: 0; height: auto; width: 250px; z-index: 9; box-shadow: 12px 0 24px #21352a15; } .sidebar.open { display: block; } .mobile-menu { display: inline-grid; } .main-panel { padding: 18px 12px; } .view-heading h2 { font-size: 20px; } .metrics { max-width: 140px; justify-content: end; } .toolbar { padding: 8px; gap: 4px; } .toolbar-spacer { flex-basis: 0; } .settings-row { gap: 9px; } .depth-control { margin-left: 0; } .demo-chart { height: 400px; } .edit-fields input { width: 125px; } .inspector-tabs button { padding: 11px 9px; } }

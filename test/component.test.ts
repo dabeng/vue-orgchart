@@ -84,14 +84,25 @@ describe('Vue chart', () => {
       await button.trigger('click'); expect(button.find(`i.${collapsed}`).exists()).toBe(true)
     }
   })
-  it('retains minus and plus controls in compact layouts and custom icons', async () => {
-    for (const props of [{ compact: true }, { icons: { collapsed: 'custom-plus', expanded: 'custom-minus' } }]) {
-      const { wrapper } = render(props)
+  it('uses a corner control to expand and collapse compact layouts', async () => {
+    const { wrapper } = render({ compact: true })
+    await wrapper.find('#a').trigger('focusin')
+    const control = wrapper.get('#a .oc-compact-toggle')
+    expect(control.attributes('aria-label')).toBe('Use compact layout')
+    await control.trigger('click')
+    expect(control.attributes('aria-label')).toBe('Expand compact layout')
+    expect(wrapper.find('#b').isVisible()).toBe(false)
+    await control.trigger('click')
+    expect(wrapper.find('#b').isVisible()).toBe(true)
+  })
+  it('retains custom icons in both regular and compact layouts', async () => {
+    for (const compact of [false, true]) {
+      const { wrapper } = render({ compact, icons: { collapsed: 'custom-plus', expanded: 'custom-minus' } })
       await wrapper.find('#a').trigger('focusin')
       const button = wrapper.find('#a .bottomEdge')
-      expect(button.find('.lucide-minus, .custom-minus').exists()).toBe(true)
-      await button.trigger('click'); expect(button.find('.lucide-plus, .custom-plus').exists()).toBe(true)
-      await button.trigger('click'); expect(button.find('.lucide-minus, .custom-minus').exists()).toBe(true)
+      expect(button.find('.custom-minus').exists()).toBe(true)
+      await button.trigger('click'); expect(button.find('.custom-plus').exists()).toBe(true)
+      await button.trigger('click'); expect(button.find('.custom-minus').exists()).toBe(true)
     }
   })
   it('queries loaded hidden relations', async () => { const { api } = render(); api.hideChildren('a'); await nextTick(); expect(api.getChildren('a').map(node => node.id)).toEqual(['b', 'c']); expect(api.getParent('b')?.id).toBe('a'); expect(api.getRelatedNodes('b', 'siblings')).toHaveLength(1); expect(api.getNodeState('a', 'children')).toEqual({ exist: true, visible: false }); api.showChildren('a'); expect(api.getNodeState('a', 'children').visible).toBe(true) })
