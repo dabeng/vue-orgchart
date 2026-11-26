@@ -18,6 +18,25 @@ describe('Vue chart', () => {
     await wrapper.find('.bottomEdge').trigger('click'); expect(wrapper.find('#b').isVisible()).toBe(false)
     await wrapper.find('#a').trigger('keydown', { key: 'ArrowDown' }); expect(wrapper.find('#b').isVisible()).toBe(true)
   })
+  it('hides pointer controls on leave and clears selection on canvas click', async () => {
+    const { wrapper } = render()
+    const node = wrapper.get<HTMLElement>('#b')
+    await node.trigger('mouseenter')
+    await node.trigger('pointerdown')
+    node.element.focus()
+    await node.trigger('click')
+    expect(node.attributes('aria-selected')).toBe('true')
+    expect(node.find('.bottomEdge').exists()).toBe(true)
+    await node.trigger('mouseleave')
+    expect(node.find('.oc-controls').exists()).toBe(false)
+    expect(node.classes()).toContain('focused')
+
+    await wrapper.get('.oc-scene').trigger('click')
+    expect(node.classes()).not.toContain('focused')
+    expect(node.attributes('aria-selected')).toBe('false')
+    expect(document.activeElement).not.toBe(node.element)
+    expect(wrapper.emitted('deselect')).toHaveLength(1)
+  })
   it.each([
     ['t2b', 'top', 'bottom', 'left', 'right', 'down', 'up', 'right', 'left'],
     ['b2t', 'bottom', 'top', 'left', 'right', 'up', 'down', 'right', 'left'],

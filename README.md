@@ -509,6 +509,7 @@ Subscribe with Vue listeners such as @select, @node-drop and @export-error. Payl
 | Vue event | Payload | When |
 | --- | --- | --- |
 | `node-click`, `select` | Copied node record | Node activation/selection. |
+| `deselect` | None | A canvas background click or Escape clears the selection. |
 | `change`, `update:data`, `update:datasource` | Full copied hierarchy or null | Structural edits; last-root removal emits null. |
 | `init` | Chart HTMLElement | Mount or the next DOM update after init. |
 | `show`, `hide` | `{ node, relation }` | Parent/children/siblings visibility action. |

@@ -90,7 +90,35 @@ export function buildDemo(id: string): { data: Datasource; options: ChartOptions
   if (id === 'bottom2top') options.direction = 'b2t'
   if (id === 'left2right' || id === 'options-horizontal-template') options.direction = 'l2r'
   if (id === 'right2left') options.direction = 'r2l'
-  if (id === 'vertical-level' || id === 'edit-hybrid-chart' || id === 'drag-drop-hybrid-chart' || id === 'options-hybrid-navigation') options.verticalLevel = 2
+  if (id === 'vertical-level') {
+    options.verticalLevel = 3; options.visibleLevel = 4
+    data = { id: '1', name: 'Lao Lao', title: 'general manager', children: [
+      { id: '2', name: 'Bo Miao', title: 'department manager' },
+      { id: '3', name: 'Su Miao', title: 'department manager', children: [
+        { id: '4', name: 'Tie Hua', title: 'senior engineer' },
+        { id: '5', name: 'Hei Hei', title: 'senior engineer', children: [
+          { id: '6', name: 'Pang Pang', title: 'engineer' },
+          { id: '7', name: 'Dan Dan', title: 'UE engineer', children: [
+            { id: '8', name: 'Er Dan', title: 'engineer' },
+            { id: '9', name: 'San Dan', title: 'engineer', children: [
+              { id: '10', name: 'Si Dan', title: 'intern' },
+              { id: '11', name: 'Wu Dan', title: 'intern' },
+            ] },
+          ] },
+        ] },
+      ] },
+      { id: '12', name: 'Hong Miao', title: 'department manager' },
+      { id: '13', name: 'Chun Miao', title: 'department manager', children: [
+        { id: '14', name: 'Bing Qin', title: 'senior engineer' },
+        { id: '15', name: 'Yue Yue', title: 'senior engineer', children: [
+          { id: '16', name: 'San Yue', title: 'engineer' },
+          { id: '17', name: 'Si Yue', title: 'UE engineer' },
+          { id: '18', name: 'Er Yue', title: 'senior engineer' },
+        ] },
+      ] },
+    ] }
+  }
+  if (id === 'edit-hybrid-chart' || id === 'drag-drop-hybrid-chart' || id === 'options-hybrid-navigation') options.verticalLevel = 2
   if (id === 'data-prop-hybrid') children[0]!.hybrid = true
   if (id === 'data-prop-compact') children[0]!.compact = true
   if (id === 'options-compact-drag') options.compact = node => node.id === '2'

@@ -1,6 +1,6 @@
 import type { VNode } from 'vue'
 export type NodeId = string | number
-export type ChartEvent = 'node-click' | 'select' | 'change' | 'update:data' | 'update:datasource' | 'init' | 'show' | 'hide' | 'node-drop' | 'load' | 'load-error' | 'zoom' | 'pan' | 'export' | 'export-error'
+export type ChartEvent = 'node-click' | 'select' | 'deselect' | 'change' | 'update:data' | 'update:datasource' | 'init' | 'show' | 'hide' | 'node-drop' | 'load' | 'load-error' | 'zoom' | 'pan' | 'export' | 'export-error'
 export interface OrgNode {
   id?: NodeId
   name?: string

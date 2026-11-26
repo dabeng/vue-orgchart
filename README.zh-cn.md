@@ -327,6 +327,7 @@ async function loadTeam() {
 | Vue 事件 | 载荷 | 触发时机 |
 | --- | --- | --- |
 | `node-click`、`select` | 复制的 OrgNode | 节点激活/选择。 |
+| `deselect` | 无 | 点击画布空白处或按 Escape 取消选择。 |
 | `change`、`update:data`、`update:datasource` | 完整层级副本或 null | 结构编辑，最后根删除时 null。 |
 | `init` | HTMLElement | 组件挂载或 init 的下一次 DOM 更新后。 |
 | `show`、`hide` | `{ node, relation }` | 父/子/兄弟可见性操作；node 为数据。 |

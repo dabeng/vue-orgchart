@@ -44,6 +44,7 @@ describe('demo catalogue', () => {
   it.each([
     ['filter-node', 'filterNodes(query)'], ['edit-chart', 'addChildren('],
     ['ondemand-loading-data', 'loadChildren('], ['report-path', 'getPath('],
+    ['ondemand-loading-data', 'if (loaded) loadedChildren.value.add(id)'],
     ['get-related-nodes', 'getNodeState('], ['export-chart-pdf', "export('OrgChart', 'pdf')"],
     ['center-on-selected-node', 'centerOnNode('], ['ajax-datasource', "fetch('/data/company.json')"],
     ['ul-datasource', "document.createElement('ul')"], ['reload-data', 'structuredClone(reloadDatasources[index]!)'],

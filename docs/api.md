@@ -127,6 +127,7 @@ Relationship transitions follow the native demo: ancestors fade toward their chi
 | Event | Payload |
 | --- | --- |
 | `node-click`, `select` | Copied node record |
+| `deselect` | No payload; a canvas background click or Escape clears the selection |
 | `change`, `update:data`, `update:datasource` | Full copied hierarchy after an edit, or null when root removed |
 | `init` | Native chart element |
 | `show`, `hide` | `{ node, relation }` |

@@ -27,6 +27,27 @@ describe('layout and option contracts', () => {
     expect(layoutChart(new ChartModel(data), resolveOptions({}), () => true, () => false).boxes.size).toBe(1)
     expect(layoutChart(new ChartModel(null), resolveOptions({}), () => true, () => true).boxes.size).toBe(0)
   })
+  it('stacks children at the configured level on one spine, with nested groups indented', () => {
+    const model = new ChartModel({ id: 'root', children: [
+      { id: 'peer' }, { id: 'parent', children: [{ id: 'leaf' }, { id: 'branch', children: [{ id: 'nested' }] }] },
+    ] })
+    const layout = layoutChart(model, resolveOptions({ verticalLevel: 3 }), () => true, () => true)
+    const parent = layout.boxes.get('parent')!; const peer = layout.boxes.get('peer')!
+    const leaf = layout.boxes.get('leaf')!; const branch = layout.boxes.get('branch')!; const nested = layout.boxes.get('nested')!
+    expect(parent.y).toBe(peer.y)
+    expect(leaf.x).toBe(parent.x)
+    expect(branch.x).toBe(leaf.x)
+    expect(branch.y).toBeGreaterThan(leaf.y + leaf.height)
+    expect(nested.x).toBeGreaterThan(branch.x)
+
+    const linkTo = (id: string) => layout.links.find(link => link.target === id)!.points
+    expect(linkTo('parent').at(-1)).toEqual([parent.x + parent.width / 2, parent.y])
+    expect(linkTo('leaf').at(-2)?.[0]).toBe(linkTo('branch').at(-2)?.[0])
+    for (const [id, box] of [['leaf', leaf], ['branch', branch], ['nested', nested]] as const) {
+      expect(linkTo(id).at(-1)).toEqual([box.x, box.y + box.height / 2])
+    }
+    expect(linkTo('nested')[0]).toEqual([branch.x, branch.y + branch.height])
+  })
   it('lays out family groups, measured templates and level offsets', () => {
     const model = new ChartModel([[{ id: 'a', levelOffset: 1, children: [[{ id: 'c' }]] }, { id: 'b' }]])
     const layout = layoutChart(model, resolveOptions({}), () => true, () => true, new Map([['a', { width: 250, height: 120 }]]))

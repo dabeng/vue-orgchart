@@ -58,6 +58,7 @@ export function useChart(props: ChartOptions, emit: (event: ChartEvent, ...args:
   const pointers = new Map<number, { x: number; y: number }>()
   let gesture: { x: number; y: number; originX: number; originY: number } | null = null
   let pinchDistance = 0
+  let suppressBackgroundClick = false
   let mapGesture: { x: number; y: number; originX: number; originY: number; ratio: number } | null = null
   function cancelRelationTransition() { relationRevision++; leavingRelations.value = null; relationMotions.value = new Map(); relating.value = false }
   function initializeVisibility() {
@@ -183,6 +184,18 @@ export function useChart(props: ChartOptions, emit: (event: ChartEvent, ...args:
   function toggleParent(reference: NodeRef) { if (getNodeState(reference, 'parent').visible) hideParent(reference); else showParent(reference) }
   function toggleSiblings(reference: NodeRef, direction?: 'left' | 'right') { const node = model.value.resolve(reference); const side = options.value.toggleSiblingsResp ? direction : undefined; if (siblingGroups(node, side).flat().some(nodeVisible)) hideSiblings(reference, side); else showSiblings(reference, side) }
   function select(node: NormalizedNode) { selected.value = node.key; emit('node-click', cloneData(node.data)); emit('select', cloneData(node.data)) }
+  function deselect() {
+    if (selected.value == null) return
+    selected.value = null
+    emit('deselect')
+  }
+  function backgroundClick(event: MouseEvent) {
+    if (suppressBackgroundClick && event.detail > 0) { suppressBackgroundClick = false; return }
+    if (event.target instanceof Element && event.target.closest('.node')) return
+    const activeElement = host.value?.ownerDocument.activeElement
+    if (activeElement instanceof HTMLElement && host.value?.contains(activeElement) && activeElement.closest('.node')) activeElement.blur()
+    deselect()
+  }
   function publish() {
     cancelRelationTransition()
     revision.value++
@@ -255,9 +268,10 @@ export function useChart(props: ChartOptions, emit: (event: ChartEvent, ...args:
   }
   function wheel(event: WheelEvent, minimap = false) { if (!options.value.zoom && !minimap) return; event.preventDefault(); const bounds = host.value?.getBoundingClientRect(); setChartScale(event.deltaY > 0 ? 0.8 : 1.2, minimap ? { x: dimensions.width / 2, y: dimensions.height / 2 } : { x: event.clientX - (bounds?.left ?? 0), y: event.clientY - (bounds?.top ?? 0) }) }
   function pointerDown(event: PointerEvent) {
+    if (!pointers.size) suppressBackgroundClick = false
     if (event.button > 0 || (!(options.value.pan || options.value.zoom) && !dragging.value)) return
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY })
-    if (pointers.size === 2 && options.value.zoom) { if (touchTimer) clearTimeout(touchTimer); touchTimer = undefined; const points = [...pointers.values()]; pinchDistance = Math.hypot(points[0]!.x - points[1]!.x, points[0]!.y - points[1]!.y); gesture = null; panning.value = false }
+    if (pointers.size === 2 && options.value.zoom) { suppressBackgroundClick = true; if (touchTimer) clearTimeout(touchTimer); touchTimer = undefined; const points = [...pointers.values()]; pinchDistance = Math.hypot(points[0]!.x - points[1]!.x, points[0]!.y - points[1]!.y); gesture = null; panning.value = false }
     else if (options.value.pan && !(event.target as HTMLElement).closest('.node,button,a,input')) { gesture = { x: event.clientX, y: event.clientY, originX: viewport.x, originY: viewport.y }; panning.value = true }
     if (gesture || pointers.size === 2) host.value?.setPointerCapture?.(event.pointerId)
   }
@@ -267,7 +281,7 @@ export function useChart(props: ChartOptions, emit: (event: ChartEvent, ...args:
     if (touchTimer && Math.hypot(previous.x - event.clientX, previous.y - event.clientY) > 8) { clearTimeout(touchTimer); touchTimer = undefined }
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY })
     if (pointers.size === 2 && options.value.zoom) { const points = [...pointers.values()]; const distance = Math.hypot(points[0]!.x - points[1]!.x, points[0]!.y - points[1]!.y); const bounds = host.value?.getBoundingClientRect(); if (pinchDistance > 0 && distance > 0) setChartScale(distance / pinchDistance, { x: (points[0]!.x + points[1]!.x) / 2 - (bounds?.left ?? 0), y: (points[0]!.y + points[1]!.y) / 2 - (bounds?.top ?? 0) }); pinchDistance = distance }
-    else if (gesture) { viewport.x = gesture.originX + event.clientX - gesture.x; viewport.y = gesture.originY + event.clientY - gesture.y; emit('pan', { ...viewport }); queueMinimap() }
+    else if (gesture) { if (Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) > 4) suppressBackgroundClick = true; viewport.x = gesture.originX + event.clientX - gesture.x; viewport.y = gesture.originY + event.clientY - gesture.y; emit('pan', { ...viewport }); queueMinimap() }
   }
   function pointerUp(event: PointerEvent) { if (dragging.value && event.pointerType === 'touch' && dropTarget.value) drop(model.value.resolve(dropTarget.value)); if (event.pointerType === 'touch') dragEnd(); pointers.delete(event.pointerId); pinchDistance = 0; gesture = null; panning.value = false; if (host.value?.hasPointerCapture?.(event.pointerId)) host.value.releasePointerCapture(event.pointerId) }
   function resetView() { viewport.x = 0; viewport.y = 0; viewport.scale = Math.min(options.value.zoominLimit, Math.max(options.value.zoomoutLimit, 1)); if (host.value) { host.value.scrollLeft = 0; host.value.scrollTop = 0 } updateMinimap() }
@@ -327,7 +341,7 @@ export function useChart(props: ChartOptions, emit: (event: ChartEvent, ...args:
   }
   onMounted(() => { viewport.scale = Math.min(options.value.zoominLimit, Math.max(options.value.zoomoutLimit, 1)); observe(); emit('init', chart.value); if (chart.value) options.value.initCompleted?.(chart.value) })
   onBeforeUnmount(destroy); watch(layout, () => nextTick(observe))
-  return { api, options, model, revision, host, chart, disposed, selected, allNodes, layout, transform, viewport, dimensions, minimapViewport, exporting, loading, dragging, dropTarget, panning, relating, relationMotions, relationTransitionEnd, keyword, nodeVisible, owner, getNodeState, toggleChildren, toggleParent, toggleSiblings, siblingGroups, select, dragStart, dragOver, dragLeave, dragEnd, drop, touchStart, wheel, pointerDown, pointerMove, pointerUp, minimapDown, minimapMove, minimapUp, updateMinimap, register }
+  return { api, options, model, revision, host, chart, disposed, selected, allNodes, layout, transform, viewport, dimensions, minimapViewport, exporting, loading, dragging, dropTarget, panning, relating, relationMotions, relationTransitionEnd, keyword, nodeVisible, owner, getNodeState, toggleChildren, toggleParent, toggleSiblings, siblingGroups, select, deselect, backgroundClick, dragStart, dragOver, dragLeave, dragEnd, drop, touchStart, wheel, pointerDown, pointerMove, pointerUp, minimapDown, minimapMove, minimapUp, updateMinimap, register }
 }
 export type ChartContext = ReturnType<typeof useChart>
 export type OrgChartInstance = ChartContext['api']

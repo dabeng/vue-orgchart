@@ -6,7 +6,7 @@ import type { ChartOptions } from './types'
 import './style.css'
 defineOptions({ name: 'OrgChart' })
 const props = withDefaults(defineProps<ChartOptions>(), { visibleLevel: 999, draggable: undefined, drag: undefined })
-const emit = defineEmits(['node-click', 'select', 'change', 'update:data', 'update:datasource', 'init', 'show', 'hide', 'node-drop', 'load', 'load-error', 'zoom', 'pan', 'export', 'export-error'])
+const emit = defineEmits(['node-click', 'select', 'deselect', 'change', 'update:data', 'update:datasource', 'init', 'show', 'hide', 'node-drop', 'load', 'load-error', 'zoom', 'pan', 'export', 'export-error'])
 const context = useChart(props, emit)
 const { host, chart, layout, options, allNodes, transform, viewport, disposed, minimapViewport, exporting, panning } = context
 defineExpose(context.api)
@@ -15,7 +15,7 @@ function download() { context.api.export().catch(() => {}) }
 <template>
   <div class="oc-shell">
     <slot name="toolbar" :chart="context.api" :viewport="viewport" />
-    <div ref="host" class="orgchart-container" :class="{ 'oc-panning': panning }" :style="{ touchAction: options.pan || options.zoom || options.draggable || options.drag ? 'none' : 'auto' }" @wheel="context.wheel($event)" @pointerdown="context.pointerDown" @pointermove="context.pointerMove" @pointerup="context.pointerUp" @pointercancel="context.pointerUp" @lostpointercapture="context.pointerUp" @scroll.passive="context.updateMinimap()">
+    <div ref="host" class="orgchart-container" :class="{ 'oc-panning': panning }" :style="{ touchAction: options.pan || options.zoom || options.draggable || options.drag ? 'none' : 'auto' }" @click="context.backgroundClick" @wheel="context.wheel($event)" @pointerdown="context.pointerDown" @pointermove="context.pointerMove" @pointerup="context.pointerUp" @pointercancel="context.pointerUp" @lostpointercapture="context.pointerUp" @scroll.passive="context.updateMinimap()">
       <div class="oc-scene" :style="{ width: `${layout.width * viewport.scale}px`, height: `${layout.height * viewport.scale}px`, minWidth: `calc(100% + ${context.dimensions.scrollLeft}px)`, minHeight: `calc(100% + ${context.dimensions.scrollTop}px)` }">
         <div v-if="!disposed" ref="chart" class="orgchart" :class="[options.direction, options.chartClass, { 'oc-relating': context.relating.value }]" :style="{ width: `${layout.width}px`, height: `${layout.height}px`, transform }" role="tree" aria-label="Organization chart">
           <svg class="oc-connections" :width="layout.width" :height="layout.height" aria-hidden="true"><TransitionGroup name="oc-link" tag="g"><path v-for="link in layout.links" :key="link.key" :data-source="link.source" :data-target="link.target" :class="[{ 'oc-spouse-link': link.spouse }, `oc-motion-${context.relationMotions.value.get(link.target) ?? 'children'}`]" :d="link.points.map(([px, py], index) => `${index ? 'L' : 'M'} ${px} ${py}`).join(' ')" /></TransitionGroup></svg>

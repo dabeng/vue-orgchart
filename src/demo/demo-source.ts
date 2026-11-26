@@ -184,23 +184,49 @@ function remove() {
   }
   if (id.startsWith('export-') || id === 'options-export-navigation') controls.push(`<button @click="chart?.export('OrgChart', '${options.exportFileextension ?? 'png'}')">Export</button>`)
   if (demo.kind === 'loading') {
-    setup.push(`async function requestChildren(node: OrgNode) {
-  await chart.value?.loadChildren(node.id!, async (_data, signal) => {
-    const response = await fetch('/data/children.json', { signal })
-    if (!response.ok) throw new Error(\`HTTP \${response.status}\`)
-    const children = await response.json() as OrgNode[]
-    function unique(record: OrgNode): OrgNode {
-      return { ...record, id: \`\${node.id}-\${record.id}\`, children: record.children ? (record.children as OrgNode[]).map(unique) : undefined }
-    }
-    return children.map(unique)
-  })
+    imports.push('onBeforeUnmount')
+    setup.push(`const loadedChildren = ref(new Set<string | number>())
+const ancestors = ref<'idle' | 'loading' | 'loaded'>('idle')
+const error = ref('')
+const ancestorController = new AbortController()
+onBeforeUnmount(() => ancestorController.abort())
+
+async function requestChildren(node: OrgNode) {
+  const id = node.id
+  if (id == null || loadedChildren.value.has(id)) return
+  error.value = ''
+  try {
+    const loaded = await chart.value?.loadChildren(id, async (_data, signal) => {
+      const response = await fetch('/data/children.json', { signal })
+      if (!response.ok) throw new Error(\`HTTP \${response.status}\`)
+      const children = await response.json() as OrgNode[]
+      function unique(record: OrgNode): OrgNode {
+        return { ...record, id: \`\${id}-\${record.id}\`, children: record.children ? (record.children as OrgNode[]).map(unique) : undefined }
+      }
+      return children.map(unique)
+    })
+    if (loaded) loadedChildren.value.add(id)
+  } catch (value) { error.value = String(value) }
 }
 async function requestAncestors() {
-  const response = await fetch('/data/ancestors.json')
-  if (!response.ok) throw new Error(\`HTTP \${response.status}\`)
-  chart.value?.addAncestors(await response.json(), 'ancestor-2')
+  const instance = chart.value
+  if (!instance || ancestors.value !== 'idle') return
+  const { signal } = ancestorController
+  error.value = ''
+  ancestors.value = 'loading'
+  try {
+    const response = await fetch('/data/ancestors.json', { signal })
+    if (!response.ok) throw new Error(\`HTTP \${response.status}\`)
+    const data = await response.json()
+    if (!signal.aborted) {
+      instance.addAncestors(data, 'ancestor-2')
+      ancestors.value = 'loaded'
+    }
+  } catch (value) { if (!signal.aborted) error.value = String(value) }
+  finally { if (ancestors.value === 'loading') ancestors.value = 'idle' }
 }`)
-    controls.push('<button @click="requestAncestors">Load ancestors</button>')
+    controls.push(`<button :disabled="ancestors !== 'idle'" @click="requestAncestors">{{ ancestors === 'loaded' ? 'Ancestors loaded' : ancestors === 'loading' ? 'Loading ancestors' : 'Load ancestors' }}</button>
+  <p v-if="error" role="alert">{{ error }}</p>`)
   }
 
   const portraits = ['family', 'family-tags', 'portraits', 'loading'].includes(demo.kind ?? '')
@@ -210,7 +236,7 @@ async function requestAncestors() {
     <template #default="{ nodeData, loading }">
       <div class="portrait-node">
         ${demo.kind === 'loading' ? '' : '<img :src="`/avatar/${nodeData.id}.jpg`" :alt="String(nodeData.name)" crossorigin="anonymous" />\n        '}<strong>{{ nodeData.name }}</strong>
-        <span>{{ nodeData.title }}</span>${demo.kind === 'family-tags' ? '\n        <div class="property-tags"><span>{{ nodeData.gender }}</span><span v-if="nodeData.outsider">Spouse</span></div>' : ''}${demo.kind === 'loading' ? '\n        <button :disabled="loading" @click.stop="requestChildren(nodeData)">{{ loading ? \'Loading\' : \'Load children\' }}</button>' : ''}
+        <span>{{ nodeData.title }}</span>${demo.kind === 'family-tags' ? '\n        <div class="property-tags"><span>{{ nodeData.gender }}</span><span v-if="nodeData.outsider">Spouse</span></div>' : ''}${demo.kind === 'loading' ? '\n        <button :disabled="loading || loadedChildren.has(nodeData.id!)" @click.stop="requestChildren(nodeData)">{{ loading ? \'Loading\' : loadedChildren.has(nodeData.id!) ? \'Children loaded\' : \'Load children\' }}</button>' : ''}
       </div>
     </template>
   `

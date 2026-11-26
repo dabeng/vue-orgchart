@@ -299,6 +299,7 @@ async function loadTeam() {
 | Vue 事件 | 載荷與時機 |
 | --- | --- |
 | `node-click`、`select` | 節點選取時，複製 OrgNode。 |
+| `deselect` | 點擊畫布空白處或按 Escape 取消選取，無事件資料。 |
 | `change`、`update:data`、`update:datasource` | 結構編輯後完整階層快照，最後根移除為 null。 |
 | `init` | 掛載或 init 下一次 DOM 更新的 HTMLElement。 |
 | `show`、`hide` | `{ node, relation }`，關係顯示操作，node 為資料。 |

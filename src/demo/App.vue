@@ -21,6 +21,8 @@ const flat = shallowRef<OrgNode[] | string>([]); const sourceEditor = ref(''); c
 const nodeDrafts = ref([{ name: 'New colleague', title: 'Engineer' }])
 const validDrafts = computed(() => nodeDrafts.value.filter(draft => draft.name.trim()))
 const batchEditing = computed(() => currentId.value.startsWith('edit-'))
+function createLoadState() { return { children: new Set<string | number>(), ancestors: 'idle' as 'idle' | 'loading' | 'loaded' } }
+const onDemand = ref(createLoadState())
 const moveTarget = ref(''); const depth = ref(2); const format = ref<'png' | 'pdf'>('png')
 let sequence = 0; let loadController: AbortController | undefined; let startTime = performance.now()
 const groups = computed(() => [...new Set(demos.map(demo => demo.category))].map(category => ({ category, demos: demos.filter(demo => demo.category === category && (demo.name + demo.id).toLowerCase().includes(search.value.toLowerCase())) })).filter(group => group.demos.length))
@@ -66,8 +68,9 @@ async function run(action: () => unknown | Promise<unknown>) { error.value = '';
 async function openDemo() {
   loadController?.abort(); loadController = new AbortController(); const controller = loadController
   pending.value = false; error.value = ''; selected.value = null; filter.value = ''; moveTarget.value = ''; sidebarOpen.value = false; selectSourceFile(0); startTime = performance.now()
-  reloadIndex.value = 0; reportActive.value = false; resetNodeFields()
+  reloadIndex.value = 0; reportActive.value = false; onDemand.value = createLoadState(); resetNodeFields()
   const configuration = buildDemo(currentId.value); datasource.value = configuration.data; chartOptions.value = configuration.options; format.value = configuration.options.exportFileextension ?? 'png'
+  depth.value = typeof configuration.options.visibleLevel === 'number' && configuration.options.visibleLevel !== 999 ? configuration.options.visibleLevel : 2
   sourceEditor.value = JSON.stringify(configuration.data instanceof HTMLUListElement ? new ChartModel(configuration.data).snapshot() : configuration.data, null, 2)
   if (configuration.demo.kind === 'remote') {
     pending.value = true
@@ -86,6 +89,7 @@ function reloadChart(index: number) {
 }
 function onInit() { elapsed.value = Math.round(performance.now() - startTime); nextTick(refresh) }
 function select(node: OrgNode) { if (selectedId.value !== node.id) reportActive.value = false; selected.value = node; refresh(); if (currentId.value === 'center-on-selected-node') chart.value?.centerOnNode(node.id!); if (currentId.value === 'report-path') inspectorTab.value = 'path'; if (currentId.value === 'get-related-nodes') inspectorTab.value = 'relations' }
+function deselect() { selected.value = null; reportActive.value = false }
 function drawReportPath() { reportActive.value = true; inspectorTab.value = 'path' }
 async function showSnapshot(tab: 'hierarchy' | 'flat') {
   refresh(); inspectorTab.value = tab
@@ -101,16 +105,42 @@ function add(relation: 'children' | 'siblings' | 'parent') {
   run(() => { if (relation === 'parent') instance.addParent(id, nodes[0]!); else if (relation === 'siblings') instance.addSiblings(id, nodes); else instance.addChildren(id, nodes) })
 }
 async function requestChildren(node: OrgNode) {
-  await run(() => chart.value!.loadChildren(node.id!, async (_data, signal) => {
-    const response = await fetch('/data/children.json', { signal }); if (!response.ok) throw new Error(`HTTP ${response.status}`)
-    const children = await response.json() as OrgNode[]
-    function unique(record: OrgNode): OrgNode { return { ...record, id: `${node.id}-${record.id}`, children: record.children ? (record.children as OrgNode[]).map(unique) : undefined } }
-    return children.map(unique)
-  }))
+  const id = node.id; const instance = chart.value; const state = onDemand.value
+  if (id == null || !instance || state.children.has(id)) return
+  await run(async () => {
+    const loaded = await instance.loadChildren(id, async (_data, signal) => {
+      const response = await fetch('/data/children.json', { signal }); if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      const children = await response.json() as OrgNode[]
+      function unique(record: OrgNode): OrgNode { return { ...record, id: `${id}-${record.id}`, children: record.children ? (record.children as OrgNode[]).map(unique) : undefined } }
+      return children.map(unique)
+    })
+    if (loaded) state.children.add(id)
+  })
 }
-async function requestAncestors() { await run(async () => { const response = await fetch('/data/ancestors.json'); if (!response.ok) throw new Error(`HTTP ${response.status}`); chart.value!.addAncestors(await response.json(), 'ancestor-2') }) }
-function applySource() { run(() => { const parsed = JSON.parse(sourceEditor.value) as Datasource; new ChartModel(parsed); datasource.value = parsed; selected.value = null }) }
-function changeLayout(event: Event) { const mode = (event.target as HTMLSelectElement).value; chartOptions.value = { ...chartOptions.value, compact: mode === 'compact', verticalLevel: mode === 'vertical' ? 2 : undefined } }
+async function requestAncestors() {
+  const instance = chart.value; const signal = loadController?.signal; const state = onDemand.value
+  if (!instance || !signal || state.ancestors !== 'idle') return
+  state.ancestors = 'loading'
+  await run(async () => {
+    try {
+      const response = await fetch('/data/ancestors.json', { signal }); if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      const data = await response.json()
+      if (!signal.aborted) { instance.addAncestors(data, 'ancestor-2'); state.ancestors = 'loaded' }
+    } catch (value) { if (!signal.aborted) throw value }
+    finally { if (state.ancestors === 'loading') state.ancestors = 'idle' }
+  })
+}
+function applySource() {
+  run(() => {
+    const parsed = JSON.parse(sourceEditor.value) as Datasource
+    new ChartModel(parsed)
+    if (currentDemo.value.kind === 'loading') {
+      loadController?.abort(); loadController = new AbortController(); onDemand.value = createLoadState()
+    }
+    datasource.value = parsed; selected.value = null
+  })
+}
+function changeLayout(event: Event) { const mode = (event.target as HTMLSelectElement).value; chartOptions.value = { ...chartOptions.value, compact: mode === 'compact', verticalLevel: mode === 'vertical' ? (currentId.value === 'vertical-level' ? 3 : 2) : undefined } }
 function changeDirection(direction: Direction) { chartOptions.value = { ...chartOptions.value, direction } }
 function remove() { if (selectedId.value != null) run(() => { chart.value!.removeNodes(selectedId.value!); selected.value = null }) }
 function routeChanged() { currentId.value = routeId() }
@@ -146,8 +176,8 @@ onBeforeUnmount(() => { loadController?.abort(); window.removeEventListener('has
       </div>
       <div v-if="error" class="error-banner" role="alert">{{ error }}<button class="icon-button" title="Dismiss error" aria-label="Dismiss error" @click="error = ''"><X :size="16" /></button></div>
       <div v-if="pending" class="loading-banner" role="status">Loading</div>
-      <OrgChart :key="currentId" ref="chart" :data="datasource" v-bind="chartOptions" class="demo-chart" :class="{ 'demo-report-active': reportActive && path.length }" @init="onInit" @node-click="select" @change="refresh" @show="refresh" @hide="refresh">
-        <template v-if="portraitSlot" #default="{ nodeData, loading }"><div class="portrait-node"><img v-if="currentDemo.kind !== 'loading'" :src="`/avatar/${nodeData.id}.jpg`" :alt="String(nodeData.name)" crossorigin="anonymous" /><strong>{{ nodeData.name }}</strong><span>{{ nodeData.title }}</span><div v-if="currentDemo.kind === 'family-tags'" class="property-tags"><span>{{ nodeData.gender }}</span><span v-if="nodeData.outsider">Spouse</span></div><button v-if="currentDemo.kind === 'loading'" class="load-button" :disabled="loading" @click.stop="requestChildren(nodeData)"><Plus :size="13" />{{ loading ? 'Loading' : 'Load children' }}</button></div></template>
+      <OrgChart :key="currentId" ref="chart" :data="datasource" v-bind="chartOptions" class="demo-chart" :class="{ 'demo-report-active': reportActive && path.length }" @init="onInit" @node-click="select" @deselect="deselect" @change="refresh" @show="refresh" @hide="refresh">
+        <template v-if="portraitSlot" #default="{ nodeData, loading }"><div class="portrait-node"><img v-if="currentDemo.kind !== 'loading'" :src="`/avatar/${nodeData.id}.jpg`" :alt="String(nodeData.name)" crossorigin="anonymous" /><strong>{{ nodeData.name }}</strong><span>{{ nodeData.title }}</span><div v-if="currentDemo.kind === 'family-tags'" class="property-tags"><span>{{ nodeData.gender }}</span><span v-if="nodeData.outsider">Spouse</span></div><button v-if="currentDemo.kind === 'loading'" class="load-button" :disabled="loading || onDemand.children.has(nodeData.id!)" @click.stop="requestChildren(nodeData)"><Check v-if="onDemand.children.has(nodeData.id!)" :size="13" /><Plus v-else :size="13" />{{ loading ? 'Loading' : onDemand.children.has(nodeData.id!) ? 'Children loaded' : 'Load children' }}</button></div></template>
       </OrgChart>
       <GeoMap v-if="currentDemo.kind === 'map'" :coordinates="selectedCoordinates" :city="selectedCity" />
       <section class="edit-section">
@@ -166,7 +196,7 @@ onBeforeUnmount(() => { loadController?.abort(); window.removeEventListener('has
           <button class="icon-button danger" title="Remove selected branch" aria-label="Remove selected branch" :disabled="selectedId == null" @click="remove"><Trash2 :size="17" /></button>
           <label>Move to<select v-model="moveTarget" aria-label="Move target"><option value="">Select node</option><option v-for="row in rows" :key="String(row.id)" :value="row.id">{{ row.name || row.id }}</option></select></label>
           <button class="icon-button" title="Move node" aria-label="Move node" :disabled="selectedId == null || !moveTarget" @click="run(() => chart?.moveNode(selectedId!, moveTarget))"><ArrowRight :size="16" /></button>
-          <button v-if="currentDemo.kind === 'loading'" class="command-button" @click="requestAncestors"><Plus :size="14" />Load ancestors</button>
+          <button v-if="currentDemo.kind === 'loading'" class="command-button" :disabled="onDemand.ancestors !== 'idle'" @click="requestAncestors"><Check v-if="onDemand.ancestors === 'loaded'" :size="14" /><Plus v-else :size="14" />{{ onDemand.ancestors === 'loading' ? 'Loading ancestors' : onDemand.ancestors === 'loaded' ? 'Ancestors loaded' : 'Load ancestors' }}</button>
         </div>
       </section>
       <section ref="inspectorPanel" class="inspector"><header><div class="inspector-tabs" role="tablist" aria-label="Data views"><button v-for="[tab, label] in [['hierarchy', 'Hierarchy'], ['flat', 'Flat records'], ['path', 'Reporting path'], ['relations', 'Relation state'], ['source', 'Datasource']]" :key="tab" role="tab" :aria-selected="inspectorTab === tab" @click="inspectorTab = tab">{{ label }}</button></div><Code :size="17" /></header><template v-if="inspectorTab === 'source'"><textarea v-model="sourceEditor" aria-label="JSON datasource" spellcheck="false" /><button class="command-button apply-source" @click="applySource"><Check :size="15" />Apply JSON</button></template><pre v-else tabindex="0">{{ output }}</pre></section>

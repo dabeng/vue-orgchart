@@ -5,8 +5,9 @@ import type { NormalizedNode } from './types'
 import type { ChartContext } from './useChart'
 const props = defineProps<{ entry: NormalizedNode; context: ChartContext }>()
 const node = ref<HTMLElement | null>(null); const hovered = ref(false); const focused = ref(false)
+const pointerFocused = ref(false)
 const options = computed(() => props.context.options.value)
-const active = computed(() => hovered.value || focused.value || props.context.selected.value === props.entry.key || props.context.loading.has(props.entry.key))
+const active = computed(() => hovered.value || (focused.value && !pointerFocused.value))
 const childOwner = computed(() => { props.context.revision.value; return props.context.owner(props.entry) })
 const hasChildren = computed(() => { props.context.revision.value; return childOwner.value.children.length > 0 })
 const childrenVisible = computed(() => { props.context.revision.value; return props.context.getNodeState(childOwner.value.key, 'children').visible })
@@ -41,14 +42,17 @@ function initialize() { if (node.value) options.value.createNode?.(node.value, p
 onMounted(() => { props.context.register(props.entry.key, node.value); initialize() })
 onBeforeUnmount(() => props.context.register(props.entry.key, null))
 watch(() => options.value.createNode, initialize)
-function focusout(event: FocusEvent) { focused.value = event.relatedTarget instanceof Node && !!node.value?.contains(event.relatedTarget) }
+function focusout(event: FocusEvent) {
+  focused.value = event.relatedTarget instanceof Node && !!node.value?.contains(event.relatedTarget)
+  if (!focused.value) pointerFocused.value = false
+}
 function keydown(event: KeyboardEvent) {
   if (event.target !== node.value) return
   const context = props.context
   if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); context.select(props.entry) }
   if (event.key === 'ArrowDown' || event.key === 'ArrowRight') { event.preventDefault(); if (hasChildren.value && !childrenVisible.value) context.toggleChildren(props.entry.key); else context.api.getChildren(childOwner.value.key)[0]?.focus() }
   if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') { event.preventDefault(); if (hasChildren.value && childrenVisible.value) context.toggleChildren(props.entry.key); else context.api.getParent(props.entry.key)?.focus() }
-  if (event.key === 'Escape') { context.selected.value = null; context.dragEnd() }
+  if (event.key === 'Escape') { context.deselect(); context.dragEnd() }
 }
 </script>
 <template>
@@ -56,7 +60,7 @@ function keydown(event: KeyboardEvent) {
   <div ref="node" v-show="!!position" class="node" :class="[entry.data.className?.replace(/\bslide-up\b/g, ''), `oc-motion-${context.relationMotions.value.get(entry.key) ?? 'children'}`, { focused: context.selected.value === entry.key, 'oc-drop-target': context.dropTarget.value === entry.key, 'oc-dragging': context.dragging.value === entry.key, matched: context.keyword.value && String(entry.data[options.nodeTitle]).toLowerCase().includes(context.keyword.value.toLowerCase()) }]"
     :id="entry.data[options.nodeId] == null ? undefined : String(entry.data[options.nodeId])" :data-node-key="entry.key" :data-parent="entry.parentKey" :data-level="entry.depth" :data-layout="context.layout.value.modes.get(entry.key)" :style="style"
     role="treeitem" :tabindex="position ? 0 : -1" :inert="!position" :aria-level="entry.depth" :aria-label="String(entry.data[options.nodeTitle] ?? entry.key)" :aria-expanded="hasChildren ? childrenVisible : undefined" :aria-selected="context.selected.value === entry.key" :aria-busy="context.loading.has(entry.key)" :aria-hidden="!position"
-    :draggable="options.draggable ?? options.drag ?? false" @mouseenter="hovered = true" @mouseleave="hovered = false" @focusin="focused = true" @focusout="focusout" @click.stop="context.select(entry)" @keydown="keydown" @dragstart="context.dragStart(entry, $event)" @dragover="context.dragOver(entry, $event)" @dragleave="context.dragLeave" @dragend="context.dragEnd" @drop="context.drop(entry, $event)" @pointerdown="context.touchStart(entry, $event)">
+    :draggable="options.draggable ?? options.drag ?? false" @mouseenter="hovered = true" @mouseleave="hovered = false" @focusin="focused = true" @focusout="focusout" @click.stop="context.select(entry)" @keydown.capture="pointerFocused = false" @keydown="keydown" @dragstart="context.dragStart(entry, $event)" @dragover="context.dragOver(entry, $event)" @dragleave="context.dragLeave" @dragend="context.dragEnd" @drop="context.drop(entry, $event)" @pointerdown.capture="pointerFocused = true" @pointerdown="context.touchStart(entry, $event)">
     <slot :node-data="entry.data" :node="entry.data" :selected="context.selected.value === entry.key" :expanded="childrenVisible" :loading="context.loading.has(entry.key)">
       <div v-if="typeof template === 'string'" class="oc-custom-template" v-html="template" />
       <CustomTemplate v-else-if="template" />

@@ -52,7 +52,7 @@ async function checkRelatedToggle(chart: Locator, anchorId: string, targetIds: s
 
 const branchLayouts = new Map([
   ['data-prop-compact', 'compact'], ['options-compact-drag', 'compact'],
-  ['data-prop-hybrid', 'vertical'], ['vertical-level', 'vertical'], ['edit-hybrid-chart', 'vertical'],
+  ['data-prop-hybrid', 'vertical'], ['edit-hybrid-chart', 'vertical'],
   ['drag-drop-hybrid-chart', 'vertical'], ['options-hybrid-navigation', 'vertical'],
 ])
 
@@ -102,6 +102,8 @@ for (const demo of demos) {
         if (demo.kind === 'loading') {
           await page.locator('.node[id="1"]').getByRole('button', { name: 'Load children', exact: true }).click()
           await checkChildToggles(page, '1', ['1-a', '1-c'])
+        } else if (demo.id === 'vertical-level') {
+          await checkChildToggles(page, '3', ['4', '5'])
         } else if (family) {
           await checkChildToggles(page, '1', ['2', '3', '9', '10'])
         } else if (['default-collapsed', 'expand-to-given-depth'].includes(demo.id)) {
@@ -157,15 +159,62 @@ for (const [direction, parentEdge, childEdge, siblingEdge, parentArrow, childArr
         return Math.abs(centerY - parent.y - parent.height / 2) < 1 && (side === 'left' ? centerX < parent.left : centerX > parent.right)
       }, edge)).toBe(true)
       await button.click()
-      await expect(button.locator(`.lucide-chevron-${opposite[icon]}`)).toBeVisible()
       await expect(page.locator(`.node[id="${relation}"]`)).not.toBeVisible()
+      await expect(page.locator('.orgchart')).not.toHaveClass(/oc-relating/)
+      await node.hover()
+      await expect(button.locator(`.lucide-chevron-${opposite[icon]}`)).toBeVisible()
       await button.click()
-      await expect(button.locator(`.lucide-chevron-${icon}`)).toBeVisible()
       await expect(page.locator(`.node[id="${relation}"]`)).toBeVisible()
+      await expect(page.locator('.orgchart')).not.toHaveClass(/oc-relating/)
+      await node.hover()
+      await expect(button.locator(`.lucide-chevron-${icon}`)).toBeVisible()
     }
     await page.screenshot({ path: test.info().outputPath('node-controls.png'), fullPage: true })
   })
 }
+
+test('node controls follow hover and blank canvas clears selection', async ({ page }, info) => {
+  await page.goto('/#/local-datasource')
+  const canvas = page.locator('.orgchart-container')
+  const node = page.locator('.node[id="2"]')
+  const editor = page.locator('.edit-section')
+  const controls = node.locator('.oc-controls')
+  const add = editor.getByRole('button', { name: 'Add child', exact: true })
+  const blank = { x: 8, y: 8 }
+
+  await node.click()
+  await expect(controls).toBeVisible()
+  await expect(node).toHaveClass(/\bfocused\b/)
+  await expect(add).toBeEnabled()
+  const bounds = (await canvas.boundingBox())!
+  await page.mouse.move(bounds.x + blank.x, bounds.y + blank.y)
+  await expect(controls).toHaveCount(0)
+  await expect(node).toHaveAttribute('aria-selected', 'true')
+
+  await page.getByRole('checkbox', { name: 'Pan', exact: true }).check()
+  const panBounds = (await canvas.boundingBox())!
+  await page.mouse.move(panBounds.x + blank.x, panBounds.y + blank.y)
+  await page.mouse.down()
+  await page.mouse.move(panBounds.x + 60, panBounds.y + blank.y, { steps: 4 })
+  await page.mouse.up()
+  await expect(node).toHaveAttribute('aria-selected', 'true')
+
+  if (info.project.name.startsWith('mobile')) await canvas.tap({ position: blank })
+  else await canvas.click({ position: blank })
+  await expect(node).toHaveAttribute('aria-selected', 'false')
+  await expect(node).not.toHaveClass(/\bfocused\b/)
+  await expect(node).not.toBeFocused()
+  await expect(add).toBeDisabled()
+  await expect(controls).toHaveCount(0)
+
+  await node.focus()
+  await expect(controls).toBeVisible()
+  await node.press('Enter')
+  await expect(node).toHaveAttribute('aria-selected', 'true')
+  await node.press('Escape')
+  await expect(node).toHaveAttribute('aria-selected', 'false')
+  await expect(add).toBeDisabled()
+})
 
 test('source code switches files and demos, supports keyboard navigation and copies the active file', async ({ page, context }, info) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
@@ -193,6 +242,75 @@ test('source code switches files and demos, supports keyboard navigation and cop
   expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)).toBe(false)
   await source.scrollIntoViewIfNeeded()
   await page.screenshot({ path: test.info().outputPath('demo-source.png'), fullPage: true })
+})
+
+test('on-demand loading retries failures and prevents duplicate successful requests', async ({ page }) => {
+  let childRequests = 0
+  await page.route('**/data/children.json', route => ++childRequests === 1 ? route.fulfill({ status: 503 }) : route.continue())
+  await page.goto('/#/ondemand-loading-data')
+  const chart = page.locator('.orgchart')
+  const root = chartNodes(chart, ['1'])
+  const load = root.getByRole('button', { name: 'Load children', exact: true })
+  await load.click()
+  await expect(page.getByRole('alert')).toContainText('HTTP 503')
+  await expect(load).toBeEnabled()
+  await load.click()
+  await expect(root.getByRole('button', { name: 'Children loaded' })).toBeDisabled()
+  await expect(chartNodes(chart, ['1-a', '1-b', '1-c'])).toHaveCount(3)
+
+  const nested = chartNodes(chart, ['1-b'])
+  await nested.getByRole('button', { name: 'Load children' }).click()
+  await expect(nested.getByRole('button', { name: 'Children loaded' })).toBeDisabled()
+  await expect(chartNodes(chart, ['1-b-a'])).toBeVisible()
+  expect(childRequests).toBe(3)
+
+  await page.getByRole('button', { name: 'Load ancestors', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Ancestors loaded', exact: true })).toBeDisabled()
+  await expect(chartNodes(chart, ['ancestor-1', 'ancestor-2'])).toHaveCount(2)
+  await expect(page.getByRole('alert')).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Reload data', exact: true }).click()
+  await expect(chart.locator('.node')).toHaveCount(1)
+  await expect(load).toBeEnabled()
+  await expect(page.getByRole('button', { name: 'Load ancestors', exact: true })).toBeEnabled()
+})
+
+test('vertical level matches the original chart and connects siblings on a common spine', async ({ page }) => {
+  await page.goto('/#/vertical-level')
+  const chart = page.locator('.orgchart')
+  await expect(page.getByRole('spinbutton', { name: 'Expansion depth' })).toHaveValue('4')
+  await expect(chart.locator('.node')).toHaveCount(18)
+  await expect(chart.locator('.node:visible .title')).toHaveText([
+    'Lao Lao', 'Bo Miao', 'Su Miao', 'Tie Hua', 'Hei Hei', 'Pang Pang', 'Dan Dan',
+    'Hong Miao', 'Chun Miao', 'Bing Qin', 'Yue Yue', 'San Yue', 'Si Yue', 'Er Yue',
+  ])
+  await expect.poll(() => chart.evaluate(surface => {
+    const box = (id: string) => surface.querySelector(`.node[id="${id}"]`)!.getBoundingClientRect()
+    const aligned = (ids: string[], axis: 'left' | 'top') => ids.every(id => Math.abs(box(id)[axis] - box(ids[0]!)[axis]) < 1)
+    const stacked = (ids: string[]) => aligned(ids, 'left') && ids.slice(1).every((id, index) => box(id).top > box(ids[index]!).bottom)
+    const connected = (source: string, targets: string[]) => {
+      const spines: number[] = []
+      for (const target of targets) {
+        const link = surface.querySelector<SVGPathElement>(`path[data-source="${source}"][data-target="${target}"]`)
+        if (!link) return false
+        const length = link.getTotalLength()
+        const endpoint = link.getPointAtLength(length).matrixTransform(link.getScreenCTM()!)
+        const node = box(target)
+        if (Math.abs(endpoint.x - node.left) > 1 || Math.abs(endpoint.y - (node.top + node.height / 2)) > 1) return false
+        const segments = link.getAttribute('d')!.split(' L ')
+        spines.push(Number(segments.at(-2)!.split(' ')[0]))
+      }
+      return spines.every(spine => spine === spines[0])
+    }
+    return aligned(['2', '3', '12', '13'], 'top') && stacked(['3', '4', '5']) && stacked(['13', '14', '15'])
+      && stacked(['6', '7']) && stacked(['16', '17', '18']) && box('6').left > box('5').left && box('16').left > box('15').left
+      && connected('3', ['4', '5']) && connected('13', ['14', '15']) && connected('5', ['6', '7']) && connected('15', ['16', '17', '18'])
+  })).toBe(true)
+  const expandable = chartNodes(chart, ['7'])
+  await expandable.focus()
+  await expandable.getByRole('button', { name: 'Expand children' }).click()
+  await expect(chartNodes(chart, ['8', '9']).filter({ visible: true })).toHaveCount(2)
+  await expect(chartNodes(chart, ['10', '11']).filter({ visible: true })).toHaveCount(0)
 })
 
 test('level offset matches the original rows and keeps connectors attached', async ({ page }) => {
