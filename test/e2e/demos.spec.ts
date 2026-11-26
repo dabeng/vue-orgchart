@@ -48,6 +48,41 @@ function chartNodes(chart: Locator, ids: string[]) {
   return chart.locator(ids.map(id => `.node[id="${id}"]`).join(', '))
 }
 
+test('responsive demo reflows the original tree across the viewport breakpoint', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/#/responsive-design')
+  const chart = page.getByRole('tree', { name: 'Organization chart' })
+  const layout = page.getByRole('combobox', { name: 'Layout' })
+  const bo = chart.getByRole('treeitem', { name: 'Bo Miao' })
+  const su = chart.getByRole('treeitem', { name: 'Su Miao' })
+  const rowDifference = () => su.evaluate(element => (element as HTMLElement).offsetTop - element.parentElement!.querySelector<HTMLElement>('[data-node-key="2"]')!.offsetTop)
+
+  await expect(chart.getByRole('treeitem')).toHaveCount(17)
+  await expect(chart.getByRole('treeitem', { name: 'Wu Dan' })).toBeVisible()
+  await expect(layout).toHaveValue('vertical')
+  await expect.poll(rowDifference).toBeGreaterThan(0)
+  await expect.poll(() => page.locator('.orgchart-container').evaluate(element => element.scrollWidth - element.clientWidth)).toBe(0)
+  await su.press('Enter')
+  await expect(su).toHaveAttribute('aria-selected', 'true')
+  await su.press('ArrowLeft')
+  await expect(su).toHaveAttribute('aria-expanded', 'false')
+  await expect(chart).not.toHaveClass(/oc-relating/)
+
+  await page.setViewportSize({ width: 577, height: 844 })
+  await expect(layout).toHaveValue('horizontal')
+  await expect(bo).toHaveAttribute('data-layout', 'horizontal')
+  await expect.poll(rowDifference).toBe(0)
+  await expect(su).toHaveAttribute('aria-selected', 'true')
+  await expect(su).toHaveAttribute('aria-expanded', 'false')
+
+  await page.setViewportSize({ width: 576, height: 844 })
+  await expect(layout).toHaveValue('vertical')
+  await expect(bo).toHaveAttribute('data-layout', 'vertical')
+  await expect.poll(rowDifference).toBeGreaterThan(0)
+  await expect(su).toHaveAttribute('aria-selected', 'true')
+  await expect(su).toHaveAttribute('aria-expanded', 'false')
+})
+
 test('compact branches match the native grids and nested toggles', async ({ page, isMobile }) => {
   await page.goto('/#/data-prop-compact')
   const chart = page.getByRole('tree', { name: 'Organization chart' })
@@ -177,6 +212,8 @@ for (const demo of demos) {
   test(`demo: ${demo.id}`, async ({ page }) => {
     if (demo.kind === 'large') test.slow()
     const errors: string[] = []; page.on('pageerror', error => errors.push(error.message))
+    const timings: string[] = []
+    if (demo.kind === 'large') page.on('console', message => { if (message.text().startsWith('[10000-nodes]')) timings.push(message.text()) })
     await page.goto(`/#/${demo.id}`)
     await expect(page.getByRole('heading', { name: demo.name, exact: true })).toBeVisible()
     await expect(page.locator('.view-heading').getByText(demo.subtitle, { exact: true })).toBeVisible()
@@ -199,18 +236,82 @@ for (const demo of demos) {
     })
     await expect.poll(rootInViewport).toBe(true)
     if (demo.kind === 'large') {
-      await expect(page.locator('.node')).toHaveCount(10000)
-      await test.step('toggle a compact department without expanding the other departments', async () => {
-        const chart = page.locator('.orgchart')
-        await expect(chart.locator('.node:visible')).toHaveCount(100)
-        await expect(chartNodes(chart, ['branch-0'])).toHaveAttribute('data-layout', 'compact')
-        await checkChildToggles(page, 'branch-0', Array.from({ length: 100 }, (_, index) => `member-0-${index}`), false, [null, 'Enter'])
-        await expect(chart.locator('.node:visible')).toHaveCount(100)
+      const chart = page.locator('.orgchart')
+      await expect(page.getByRole('status').filter({ hasText: 'Initialization completed.' })).toBeVisible()
+      await expect.poll(() => timings).toEqual([
+        '[10000-nodes] datasource size: 10000',
+        expect.stringMatching(/datasource generation time: \d+\.\d{2}ms$/),
+        expect.stringMatching(/orgchart render time: \d+\.\d{2}ms$/),
+      ])
+      await expect(chart.locator('.node:visible')).toHaveCount(10000)
+      await expect(chart.locator('.oc-connections path')).toHaveCount(9999)
+      await expect(chart.locator('.oc-compact-group')).toHaveCount(0)
+      await expect(chartNodes(chart, ['n10000'])).toHaveAttribute('aria-label', 'n10000')
+      await expect.poll(() => chart.evaluate(element => {
+        const node = (id: string) => element.querySelector<HTMLElement>(`[data-node-key="${id}"]`)!
+        const [root, branch, nextBranch, leaf, nextLeaf] = ['n1', 'n2', 'n103', 'n3', 'n4'].map(node)
+        return {
+          branchesInSameRow: root!.offsetTop < branch!.offsetTop && branch!.offsetTop === nextBranch!.offsetTop && branch!.offsetLeft < nextBranch!.offsetLeft,
+          leavesInColumn: branch!.offsetTop < leaf!.offsetTop && leaf!.offsetTop < nextLeaf!.offsetTop && leaf!.offsetLeft === nextLeaf!.offsetLeft,
+          titleOnly: leaf!.offsetHeight <= 28 && !root!.querySelector('.content'),
+        }
+      })).toEqual({ branchesInSameRow: true, leavesInColumn: true, titleOnly: true })
+      await test.step('toggle one leaf column without measuring unrelated connectors', async () => {
+        const branch = chartNodes(chart, ['n4951'])
+        const leaf = chartNodes(chart, ['n4952'])
+        const neighborLeaf = chartNodes(chart, ['n5053'])
+        for (const expanded of [false, true]) {
+          await branch.focus()
+          const toggle = branch.getByRole('button', { name: expanded ? 'Expand children' : 'Collapse children' })
+          await toggle.evaluate((button, expanded) => {
+            const tree = button.closest<HTMLElement>('.orgchart')!
+            delete tree.dataset.columnToggle
+            button.addEventListener('click', () => {
+              const start = performance.now()
+              const original = SVGPathElement.prototype.getBoundingClientRect
+              let measurements = 0
+              SVGPathElement.prototype.getBoundingClientRect = function () {
+                if (this.closest('.oc-connections')) measurements++
+                return original.call(this)
+              }
+              function sample() {
+                const leaf = tree.querySelector<HTMLElement>('[data-node-key="n4952"]')!
+                const visible = getComputedStyle(leaf).display !== 'none'
+                if (visible !== expanded || tree.classList.contains('oc-relating') || leaf.getAnimations().some(animation => animation instanceof CSSTransition && ['opacity', 'transform'].includes(animation.transitionProperty))) {
+                  requestAnimationFrame(sample)
+                  return
+                }
+                SVGPathElement.prototype.getBoundingClientRect = original
+                tree.dataset.columnToggle = `${measurements}:${Math.round(performance.now() - start)}ms`
+              }
+              requestAnimationFrame(sample)
+            }, { capture: true, once: true })
+          }, expanded)
+          await toggle.press('Enter')
+          await expect(chart).toHaveAttribute('data-column-toggle', /^0:\d+ms$/)
+          await expect(branch).toHaveAttribute('aria-expanded', String(expanded))
+          await expect(leaf).toBeVisible({ visible: expanded })
+          await expect(neighborLeaf).toBeVisible()
+        }
       })
-      await page.getByRole('button', { name: 'Expand all', exact: true }).click()
-      await expect(page.locator('.node:visible')).toHaveCount(10000)
-      await page.getByRole('button', { name: 'Collapse all', exact: true }).click()
-      await expect(page.locator('.node:visible')).toHaveCount(1)
+      await test.step('keep the centered branch in view when toggling siblings', async () => {
+        const branch = chartNodes(chart, ['n4951'])
+        const neighbor = chartNodes(chart, ['n5052'])
+        const toggle = branch.getByRole('button', { name: 'Toggle right siblings' })
+        await expect(branch).toBeInViewport()
+        await branch.focus()
+        await toggle.click()
+        await expect(chart).not.toHaveClass(/oc-relating/, { timeout: 20000 })
+        await expect(neighbor).toBeHidden()
+        await expect(branch).toBeVisible()
+        await expect(branch).toBeInViewport()
+
+        await branch.focus()
+        await toggle.click()
+        await expect(chart).not.toHaveClass(/oc-relating/)
+        await expect(neighbor).toBeVisible()
+        await expect(branch).toBeInViewport()
+      })
     } else {
       const chart = page.locator('.orgchart')
       const branchLayout = branchLayouts.get(demo.id)
@@ -221,6 +322,8 @@ for (const demo of demos) {
           await checkChildToggles(page, '1', ['1-a', '1-c'])
         } else if (demo.id === 'vertical-level') {
           await checkChildToggles(page, '3', ['4', '5'])
+        } else if (demo.id === 'responsive-design') {
+          await checkChildToggles(page, '1', ['2', '3', '12', '13'])
         } else if (demo.id === 'data-prop-compact') {
           await expect(chart.locator('.node:visible')).toHaveCount(7)
           await checkChildToggles(page, '2', ['8', '9', '10', '11', '12'], false)

@@ -89,6 +89,27 @@ export function useChart(props: ChartOptions, emit: (event: ChartEvent, ...args:
     const detail = { node: cloneData(node.data), relation }; emit(visible ? 'show' : 'hide', detail)
     chart.value?.dispatchEvent(new CustomEvent(`${visible ? 'show' : 'hide'}-${relation}.orgchart`, { detail }))
   }
+  function keepAnchorInView(container: HTMLElement, before: DOMRect, after: DOMRect) {
+    const bounds = container.getBoundingClientRect()
+    const left = bounds.left + container.clientLeft; const right = left + container.clientWidth
+    const top = bounds.top + container.clientTop; const bottom = top + container.clientHeight
+    if (before.right <= left || before.left >= right || before.bottom <= top || before.top >= bottom) return
+
+    if (after.right <= left || after.left >= right) {
+      const scrollLeft = container.scrollLeft
+      const delta = (after.left + after.right - left - right) / 2
+      container.scrollLeft += delta
+      const moved = container.scrollLeft - scrollLeft
+      if (after.right - moved <= left || after.left - moved >= right) viewport.x -= delta - moved
+    }
+    if (after.bottom <= top || after.top >= bottom) {
+      const scrollTop = container.scrollTop
+      const delta = (after.top + after.bottom - top - bottom) / 2
+      container.scrollTop += delta
+      const moved = container.scrollTop - scrollTop
+      if (after.bottom - moved <= top || after.top - moved >= bottom) viewport.y -= delta - moved
+    }
+  }
   function reflowRelations(previous: Layout, anchor: string, preserveAnchor: boolean) {
     const before = model.value.nodes.has(anchor) ? element(anchor)?.getBoundingClientRect() : undefined; const previousBox = previous.boxes.get(anchor)
     const previousOffset = Math.max(0, (dimensions.width - previous.width * viewport.scale) / 2)
@@ -99,7 +120,11 @@ export function useChart(props: ChartOptions, emit: (event: ChartEvent, ...args:
     nextTick(() => {
       if (version !== relationRevision || disposed.value) return
       const after = model.value.nodes.has(anchor) ? element(anchor)?.getBoundingClientRect() : undefined
-      if (preserveAnchor && host.value?.clientWidth && before && after) { viewport.x += before.x - after.x; viewport.y += before.y - after.y }
+      const container = host.value
+      if (container?.clientWidth && before && after && box) {
+        if (preserveAnchor) { viewport.x += before.x - after.x; viewport.y += before.y - after.y }
+        else keepAnchorInView(container, before, after)
+      }
       nextTick(() => { if (version === relationRevision) { relating.value = false; updateMinimap() } })
     })
   }

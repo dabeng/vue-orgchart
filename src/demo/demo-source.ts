@@ -1,4 +1,4 @@
-import { buildDemo, reloadDatasources } from './demos'
+import { buildDemo, reloadDatasources, responsiveViewportQuery } from './demos'
 import { ChartModel } from '../components/tree'
 import mapSource from './GeoMap.vue?raw'
 import highlightSource from './demo-highlights.ts?raw'
@@ -84,6 +84,15 @@ export function demoSource(id: string): DemoSourceFile[] {
   const attributes: string[] = []
   const styles = ['.demo-chart { height: 480px; max-width: 100%; }']
   if (id === 'data-prop-compact') styles.push(compactStyles.trim())
+  if (id === 'responsive-design') {
+    imports.push('onMounted', 'onBeforeUnmount')
+    setup.push(`const viewport = window.matchMedia(${JSON.stringify(responsiveViewportQuery)})
+const verticalLevel = ref(viewport.matches ? 2 : undefined)
+function updateLayout() { verticalLevel.value = viewport.matches ? 2 : undefined }
+onMounted(() => viewport.addEventListener('change', updateLayout))
+onBeforeUnmount(() => viewport.removeEventListener('change', updateLayout))`)
+    attributes.push(':vertical-level="verticalLevel"')
+  }
   const customTemplate = id === 'custom-template' || id === 'options-horizontal-template'
   const functions = callbacks[customTemplate ? 'custom-template' : id] ?? {}
   const optionCode = Object.entries(options).map(([key, value]) => `  ${key}: ${typeof value === 'function' ? functions[key] : JSON.stringify(value)}`).join(',\n')
@@ -102,15 +111,25 @@ onMounted(async () => {
 list.innerHTML = ${JSON.stringify(data.innerHTML)}
 const data = shallowRef(list)`
   } else if (demo.kind === 'large') {
-    dataCode = `const data = shallowRef({
-  id: '1', name: 'Headquarters', title: '10,000 members',
-  children: Array.from({ length: 99 }, (_, branch) => ({
-    id: \`branch-\${branch}\`, name: \`Department \${branch + 1}\`,
-    children: Array.from({ length: 100 }, (_, child) => ({
-      id: \`member-\${branch}-\${child}\`, name: \`Member \${branch * 100 + child + 1}\`
-    }))
-  }))
-})`
+    dataCode = `const dataStart = performance.now()
+let nextId = 1
+const node = () => { const id = \`n\${nextId++}\`; return { id, name: id } }
+const data = shallowRef({ ...node(), children: Array.from({ length: 99 }, () => ({ ...node(), children: Array.from({ length: 100 }, node) })) })
+const datasourceMs = performance.now() - dataStart`
+    setup.push(`const renderStart = performance.now()
+const initialized = ref(false)
+function onInit() {
+  requestAnimationFrame(() => {
+    const renderMs = performance.now() - renderStart
+    initialized.value = true
+    console.log('[10000-nodes] datasource size:', 10000)
+    console.log(\`[10000-nodes] datasource generation time: \${datasourceMs.toFixed(2)}ms\`)
+    console.log(\`[10000-nodes] orgchart render time: \${renderMs.toFixed(2)}ms\`)
+  })
+}`)
+    attributes.push('@init="onInit"')
+    controls.push(`<p role="status">{{ initialized ? 'Initialization completed. Check the browser console for timing details.' : 'Initializing chart...' }}</p>`)
+    styles.push('.demo-chart { height: max(400px, calc(100dvh - 100px)); }', '.orgchart.demo-large { --oc-row-height: 26px; }', '.orgchart.demo-large .title { min-height: 24px; padding: 2px 8px; border-radius: 5px; font-size: 12px; }')
   } else if (id === 'reload-data') {
     extraImports.push("import reloadDatasources from './data.json'")
     dataCode = 'const data = shallowRef<Datasource>(structuredClone(reloadDatasources[0]!))'
@@ -259,7 +278,8 @@ const city = computed(() => selected.value?.city as string | undefined)`)
   }
 
   const controlMarkup = controls.length ? '\n  ' + controls.join('\n  ') : ''
-  const toolbarMarkup = action?.toolbar ? '\n  ' + action.toolbar : id === 'reload-data' ? controlMarkup : ''
+  const controlsBeforeChart = id === 'reload-data' || demo.kind === 'large'
+  const toolbarMarkup = action?.toolbar ? '\n  ' + action.toolbar : controlsBeforeChart ? controlMarkup : ''
   const code = `<script setup lang="ts">
 import { ${imports.join(', ')} } from 'vue'
 import OrgChart, { ${chartImports.length ? chartImports.join(', ') + ', ' : ''}type ChartOptions, type Datasource, type OrgChartInstance, type OrgNode } from 'vue-organization-chart'
@@ -275,7 +295,7 @@ ${optionCode}
 ${setup.length ? '\n' + setup.join('\n\n') + '\n' : ''}</script>
 
 <template>${toolbarMarkup}
-  <OrgChart ref="chart" :data="data" v-bind="options" class="demo-chart"${attributes.length ? ' ' + attributes.join(' ') : ''}${slot ? '>' + slot + '</OrgChart>' : ' />'}${id === 'reload-data' ? '' : controlMarkup}
+  <OrgChart ref="chart" :data="data" v-bind="options" class="demo-chart"${attributes.length ? ' ' + attributes.join(' ') : ''}${slot ? '>' + slot + '</OrgChart>' : ' />'}${controlsBeforeChart ? '' : controlMarkup}
 </template>`
 
   return [{ name: `${demo.id}.vue`, language: 'vue', code }, ...files, { name: 'demo.css', language: 'css', code: styles.join('\n') }]

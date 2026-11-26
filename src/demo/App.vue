@@ -3,7 +3,7 @@ import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, r
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, Code, Copy, Download, Expand, Focus, ListTree, Menu, Minus, PanelLeftClose, PanelLeftOpen, Plus, RefreshCw, Route, Search, Trash2, X, ZoomIn, ZoomOut } from '@lucide/vue'
 import OrgChart from '../components/index.js'
 import { ChartModel } from '../components/tree'
-import { buildDemo, demos, isDenseCompactBranch, reloadDatasources } from './demos'
+import { buildDemo, demos, isDenseCompactBranch, reloadDatasources, responsiveViewportQuery } from './demos'
 import { demoSource } from './demo-source'
 import { markRelatedNodes, markReportingPath, relationLegend } from './demo-highlights'
 import type { ChartOptions, Datasource, Direction, OrgNode } from '../components/types'
@@ -14,6 +14,7 @@ const GeoMap = defineAsyncComponent(() => import('./GeoMap.vue'))
 function routeId() { return location.hash.replace(/^#\/?/, '') || new URLSearchParams(location.search).get('demo') || location.pathname.match(/\/demo\/([^/]+)\.html$/)?.[1] || 'local-datasource' }
 const currentId = ref(routeId()); const chart = ref<OrgChartInstance | null>(null)
 const datasource = shallowRef<Datasource>(null); const chartOptions = ref<ChartOptions>({})
+const responsiveViewport = window.matchMedia(responsiveViewportQuery)
 const currentDemo = computed(() => demos.find(demo => demo.id === currentId.value) ?? demos[0]!)
 const reloadIndex = ref(0)
 const search = ref(''); const filter = ref(''); const selected = ref<OrgNode | null>(null)
@@ -21,6 +22,7 @@ const sidebarOpen = ref(false); const inspectorTab = ref('hierarchy'); const sna
 const sidebarCollapsed = ref(false)
 const sidebarToggleLabel = computed(() => sidebarCollapsed.value ? 'Expand demos' : 'Collapse demos')
 const flat = shallowRef<OrgNode[] | string>([]); const sourceEditor = ref(''); const error = ref(''); const pending = ref(false); const elapsed = ref(0)
+const largeRun = ref(0); const largeInitialized = ref(false); let datasourceMs = 0
 const nodeDrafts = ref([{ name: 'New colleague', title: 'Engineer' }])
 const validDrafts = computed(() => nodeDrafts.value.filter(draft => draft.name.trim()))
 const batchEditing = computed(() => currentId.value.startsWith('edit-'))
@@ -72,9 +74,15 @@ async function openDemo() {
   loadController?.abort(); loadController = new AbortController(); const controller = loadController
   pending.value = false; error.value = ''; selected.value = null; filter.value = ''; moveTarget.value = ''; sidebarOpen.value = false; selectSourceFile(0); startTime = performance.now()
   reloadIndex.value = 0; reportActive.value = false; onDemand.value = createLoadState(); resetNodeFields()
+  const dataStart = performance.now()
   const configuration = buildDemo(currentId.value); datasource.value = configuration.data; chartOptions.value = configuration.options; format.value = configuration.options.exportFileextension ?? 'png'
+  datasourceMs = performance.now() - dataStart
+  updateResponsiveLayout()
   depth.value = typeof configuration.options.visibleLevel === 'number' && configuration.options.visibleLevel !== 999 ? configuration.options.visibleLevel : 2
   sourceEditor.value = JSON.stringify(configuration.data instanceof HTMLUListElement ? new ChartModel(configuration.data).snapshot() : configuration.data, null, 2)
+  if (configuration.demo.kind === 'large') {
+    depth.value = 3; elapsed.value = 0; largeInitialized.value = false; largeRun.value++; startTime = performance.now()
+  }
   if (configuration.demo.kind === 'remote') {
     pending.value = true
     try { const response = await fetch('/data/company.json', { signal: controller.signal }); if (!response.ok) throw new Error(`HTTP ${response.status}`); const data = await response.json(); if (!controller.signal.aborted) { datasource.value = data; sourceEditor.value = JSON.stringify(data, null, 2) } }
@@ -90,7 +98,20 @@ function reloadChart(index: number) {
     datasource.value = data; sourceEditor.value = JSON.stringify(data, null, 2)
   })
 }
-function onInit() { elapsed.value = Math.round(performance.now() - startTime); nextTick(refresh) }
+function onInit() {
+  if (currentDemo.value.kind === 'large') {
+    const signal = loadController?.signal; const renderStart = startTime; const generation = datasourceMs
+    requestAnimationFrame(() => {
+      if (signal?.aborted) return
+      const renderMs = performance.now() - renderStart
+      elapsed.value = Math.round(renderMs); largeInitialized.value = true
+      console.log('[10000-nodes] datasource size:', 10000)
+      console.log(`[10000-nodes] datasource generation time: ${generation.toFixed(2)}ms`)
+      console.log(`[10000-nodes] orgchart render time: ${renderMs.toFixed(2)}ms`)
+    })
+  } else elapsed.value = Math.round(performance.now() - startTime)
+  nextTick(refresh)
+}
 function select(node: OrgNode) { if (selectedId.value !== node.id) reportActive.value = false; selected.value = node; refresh(); if (currentId.value === 'center-on-selected-node') chart.value?.centerOnNode(node.id!); if (currentId.value === 'report-path') inspectorTab.value = 'path'; if (currentId.value === 'get-related-nodes') inspectorTab.value = 'relations' }
 function deselect() { selected.value = null; reportActive.value = false }
 function drawReportPath() { reportActive.value = true; inspectorTab.value = 'path' }
@@ -144,12 +165,15 @@ function applySource() {
   })
 }
 function changeLayout(event: Event) { const mode = (event.target as HTMLSelectElement).value; chartOptions.value = { ...chartOptions.value, compact: mode === 'compact' || (currentId.value === 'data-prop-compact' && isDenseCompactBranch), verticalLevel: mode === 'vertical' ? (currentId.value === 'vertical-level' ? 3 : 2) : undefined } }
+function updateResponsiveLayout() {
+  if (currentId.value === 'responsive-design') chartOptions.value = { ...chartOptions.value, verticalLevel: responsiveViewport.matches ? 2 : undefined }
+}
 function changeDirection(direction: Direction) { chartOptions.value = { ...chartOptions.value, direction } }
 function remove() { if (selectedId.value != null) run(() => { chart.value!.removeNodes(selectedId.value!); selected.value = null }) }
 function routeChanged() { currentId.value = routeId() }
 watch(currentId, openDemo, { immediate: true })
-onMounted(() => { window.addEventListener('hashchange', routeChanged); window.addEventListener('popstate', routeChanged) })
-onBeforeUnmount(() => { loadController?.abort(); window.removeEventListener('hashchange', routeChanged); window.removeEventListener('popstate', routeChanged) })
+onMounted(() => { window.addEventListener('hashchange', routeChanged); window.addEventListener('popstate', routeChanged); responsiveViewport.addEventListener('change', updateResponsiveLayout) })
+onBeforeUnmount(() => { loadController?.abort(); window.removeEventListener('hashchange', routeChanged); window.removeEventListener('popstate', routeChanged); responsiveViewport.removeEventListener('change', updateResponsiveLayout) })
 </script>
 <template>
   <div class="workbench" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
@@ -189,7 +213,8 @@ onBeforeUnmount(() => { loadController?.abort(); window.removeEventListener('has
       </div>
       <div v-if="error" class="error-banner" role="alert">{{ error }}<button class="icon-button" title="Dismiss error" aria-label="Dismiss error" @click="error = ''"><X :size="16" /></button></div>
       <div v-if="pending" class="loading-banner" role="status">Loading</div>
-      <OrgChart :key="currentId" ref="chart" :data="datasource" v-bind="chartOptions" class="demo-chart" :class="{ 'demo-report-active': reportActive && path.length }" @init="onInit" @node-click="select" @deselect="deselect" @change="refresh" @show="refresh" @hide="refresh">
+      <div v-else-if="currentDemo.kind === 'large'" class="loading-banner" role="status">{{ largeInitialized ? 'Initialization completed. Check the browser console for timing details.' : 'Initializing chart...' }}</div>
+      <OrgChart :key="currentDemo.kind === 'large' ? largeRun : currentId" ref="chart" :data="datasource" v-bind="chartOptions" class="demo-chart" :class="{ 'demo-report-active': reportActive && path.length, 'demo-large-chart': currentDemo.kind === 'large' }" @init="onInit" @node-click="select" @deselect="deselect" @change="refresh" @show="refresh" @hide="refresh">
         <template v-if="portraitSlot" #default="{ nodeData, loading }"><div class="portrait-node"><img v-if="currentDemo.kind !== 'loading'" :src="`/avatar/${nodeData.id}.jpg`" :alt="String(nodeData.name)" crossorigin="anonymous" /><strong>{{ nodeData.name }}</strong><span>{{ nodeData.title }}</span><div v-if="currentDemo.kind === 'family-tags'" class="property-tags"><span>{{ nodeData.gender }}</span><span v-if="nodeData.outsider">Spouse</span></div><button v-if="currentDemo.kind === 'loading'" class="load-button" :disabled="loading || onDemand.children.has(nodeData.id!)" @click.stop="requestChildren(nodeData)"><Check v-if="onDemand.children.has(nodeData.id!)" :size="13" /><Plus v-else :size="13" />{{ loading ? 'Loading' : onDemand.children.has(nodeData.id!) ? 'Children loaded' : 'Load children' }}</button></div></template>
       </OrgChart>
       <GeoMap v-if="currentDemo.kind === 'map'" :coordinates="selectedCoordinates" :city="selectedCity" />

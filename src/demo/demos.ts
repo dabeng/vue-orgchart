@@ -18,7 +18,7 @@ export const demos: Demo[] = [
   { id: 'level-offset', name: 'Level offset', category: 'Layout', subtitle: 'This demo offsets selected nodes to specific levels so branches can intentionally break the default depth alignment.' },
   { id: 'nodes-of-different-widths', name: 'Different node widths', category: 'Layout', subtitle: 'This demo removes fixed title and content widths so node sizing follows the actual text length.' },
   { id: 'responsive-design', name: 'Responsive design', category: 'Layout', subtitle: 'This demo shows how the chart behaves inside a constrained container across different viewport sizes.' },
-  { id: '10000-nodes', name: '10,000 nodes', category: 'Layout', kind: 'large', subtitle: 'This demo generates 10,000 nodes, starts with only the first two levels visible, and displays the initial render time.' },
+  { id: '10000-nodes', name: '10,000 nodes', category: 'Layout', kind: 'large', subtitle: 'This demo generates exactly 10,000 nodes and renders the full chart immediately after the page loads.' },
   { id: 'pan-zoom', name: 'Pan and zoom', category: 'Navigation', subtitle: 'Drag to pan the chart. Wheel zoom stays centered on the pointer, while pinch zoom stays centered between the two fingers.' },
   { id: 'minimap', name: 'Minimap', category: 'Navigation', subtitle: 'This demo enables a live overview in the bottom-right corner of the chart. Its viewport rectangle tracks and controls the visible area.' },
   { id: 'toggle-sibs-resp', name: 'Toggle siblings separately', category: 'Navigation', subtitle: 'This demo lets users collapse and expand left and right sibling groups independently.' },
@@ -76,6 +76,7 @@ export function family(): OrgNode[][] {
   ] }]]
 }
 export function isDenseCompactBranch(node: OrgNode) { return Array.isArray(node.children) && node.children.length >= 10 }
+export const responsiveViewportQuery = '(max-width: 576px)'
 export function buildDemo(id: string): { data: Datasource; options: ChartOptions; demo: Demo } {
   const demo = demos.find(item => item.id === id) ?? demos[0]!
   const options: ChartOptions = { nodeContent: 'title', pan: false, zoom: false, minimap: false, draggable: false, direction: 't2b', visibleLevel: 999 }
@@ -162,8 +163,34 @@ export function buildDemo(id: string): { data: Datasource; options: ChartOptions
     ],
   }
   if (id === 'nodes-of-different-widths') { children[0]!.width = 230; children[1]!.width = 130 }
-  if (['pan-zoom', 'minimap', 'center-on-selected-node', 'responsive-design', 'options-export-navigation', 'options-hybrid-navigation', 'options-compact-drag'].includes(id)) { options.pan = true; options.zoom = true }
-  if (['minimap', 'options-export-navigation', 'options-hybrid-navigation', 'options-compact-drag', 'responsive-design'].includes(id)) options.minimap = true
+  if (id === 'responsive-design') data = {
+    id: '1', name: 'Lao Lao', title: 'general manager', children: [
+      { id: '2', name: 'Bo Miao', title: 'department manager' },
+      { id: '3', name: 'Su Miao', title: 'department manager', children: [
+        { id: '4', name: 'Tie Hua', title: 'senior engineer' },
+        { id: '5', name: 'Hei Hei', title: 'senior engineer', children: [
+          { id: '6', name: 'Pang Pang', title: 'engineer' },
+          { id: '7', name: 'Dan Dan', title: 'UE engineer', children: [
+            { id: '8', name: 'Er Dan', title: 'engineer' },
+            { id: '9', name: 'San Dan', title: 'engineer', children: [
+              { id: '10', name: 'Si Dan', title: 'intern' },
+              { id: '11', name: 'Wu Dan', title: 'intern' },
+            ] },
+          ] },
+        ] },
+      ] },
+      { id: '12', name: 'Hong Miao', title: 'department manager' },
+      { id: '13', name: 'Chun Miao', title: 'department manager', children: [
+        { id: '14', name: 'Bing Qin', title: 'senior engineer' },
+        { id: '15', name: 'Yue Yue', title: 'senior engineer', children: [
+          { id: '16', name: 'Er Yue', title: 'engineer' },
+          { id: '17', name: 'San Yue', title: 'UE engineer' },
+        ] },
+      ] },
+    ],
+  }
+  if (['pan-zoom', 'minimap', 'center-on-selected-node', 'options-export-navigation', 'options-hybrid-navigation', 'options-compact-drag'].includes(id)) { options.pan = true; options.zoom = true }
+  if (['minimap', 'options-export-navigation', 'options-hybrid-navigation', 'options-compact-drag'].includes(id)) options.minimap = true
   if (id.includes('drag') || id.startsWith('edit-')) options.draggable = true
   if (id === 'drag-drop') options.dropCriteria = (dragged, _parent, target) => !(dragged.querySelector('.content')?.textContent?.includes('manager') && target.querySelector('.content')?.textContent?.includes('engineer'))
   if (id.startsWith('export-') || id === 'options-export-navigation') options.exportButton = true
@@ -173,8 +200,11 @@ export function buildDemo(id: string): { data: Datasource; options: ChartOptions
   if (id === 'option-createNode') options.createNode = (element, node) => { const tag = document.createElement('span'); tag.className = 'node-tag'; tag.textContent = `ID ${node.id}`; element.append(tag) }
   if (id === 'custom-template' || id === 'options-horizontal-template') options.nodeTemplate = node => h('div', { class: 'employee-template' }, [h('img', { src: `/avatar/${node.id}.jpg`, alt: '', crossorigin: 'anonymous' }), h('div', [h('strong', String(node.name)), h('small', String(node.title)), h('a', { href: `mailto:employee${node.id}@example.com` }, 'Email')])])
   if (id === '10000-nodes') {
-    data = { id: '1', name: 'Headquarters', title: '10,000 members', children: Array.from({ length: 99 }, (_, branch) => ({ id: `branch-${branch}`, name: `Department ${branch + 1}`, children: Array.from({ length: 100 }, (_, child) => ({ id: `member-${branch}-${child}`, name: `Member ${branch * 100 + child + 1}` })) })) }
-    options.compact = true; options.pan = true; options.zoom = true; options.minimap = true; options.visibleLevel = 2
+    let nextId = 1
+    const node = () => { const id = `n${nextId++}`; return { id, name: id } }
+    data = { ...node(), children: Array.from({ length: 99 }, () => ({ ...node(), children: Array.from({ length: 100 }, node) })) }
+    options.verticalLevel = 3
+    options.chartClass = 'demo-large'
   }
   return { data, options, demo }
 }

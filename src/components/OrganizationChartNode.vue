@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, defineComponent, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Users } from '@lucide/vue'
+import type { Box } from './layout'
 import type { NormalizedNode } from './types'
 import type { ChartContext } from './useChart'
 const props = defineProps<{ entry: NormalizedNode; context: ChartContext }>()
@@ -34,7 +35,11 @@ const controls = computed(() => ({
   left: arrow('left', props.context.siblingGroups(props.entry, options.value.toggleSiblingsResp ? 'left' : undefined).flat().some(props.context.nodeVisible)),
   right: arrow('right', props.context.siblingGroups(props.entry, options.value.toggleSiblingsResp ? 'right' : undefined).flat().some(props.context.nodeVisible)),
 }))
-const position = computed(() => props.context.layout.value.boxes.get(props.entry.key))
+const position = computed<Pick<Box, 'x' | 'y'> | undefined>(previous => {
+  const next = props.context.layout.value.boxes.get(props.entry.key)
+  return previous && next && previous.x === next.x && previous.y === next.y ? previous : next
+})
+const motion = computed(() => props.context.relationMotions.value.get(props.entry.key) ?? 'children')
 const lastPosition = shallowRef(position.value)
 watch(position, value => { if (value) lastPosition.value = value }, { flush: 'sync' })
 const style = computed(() => ({ left: `${(position.value ?? lastPosition.value)?.x ?? 0}px`, top: `${(position.value ?? lastPosition.value)?.y ?? 0}px`, width: props.entry.data.width ? `${props.entry.data.width}px` : undefined, minHeight: props.entry.data.height ? `${props.entry.data.height}px` : undefined }))
@@ -59,7 +64,7 @@ function keydown(event: KeyboardEvent) {
 </script>
 <template>
   <Transition name="oc-branch" :css="!context.instantCompact.value" @after-leave="context.relationTransitionEnd(entry.key)" @leave-cancelled="context.relationTransitionEnd(entry.key)">
-  <div ref="node" v-show="!!position" class="node" :class="[entry.data.className?.replace(/\bslide-up\b/g, ''), `oc-motion-${context.relationMotions.value.get(entry.key) ?? 'children'}`, { focused: context.selected.value === entry.key, 'oc-drop-target': context.dropTarget.value === entry.key, 'oc-dragging': context.dragging.value === entry.key, matched: context.keyword.value && String(entry.data[options.nodeTitle]).toLowerCase().includes(context.keyword.value.toLowerCase()) }]"
+  <div ref="node" v-show="!!position" class="node" :class="[entry.data.className?.replace(/\bslide-up\b/g, ''), `oc-motion-${motion}`, { focused: context.selected.value === entry.key, 'oc-drop-target': context.dropTarget.value === entry.key, 'oc-dragging': context.dragging.value === entry.key, matched: context.keyword.value && String(entry.data[options.nodeTitle]).toLowerCase().includes(context.keyword.value.toLowerCase()) }]"
     :id="entry.data[options.nodeId] == null ? undefined : String(entry.data[options.nodeId])" :data-node-key="entry.key" :data-parent="entry.parentKey" :data-level="entry.depth" :data-layout="mode" :style="style"
     role="treeitem" :tabindex="position ? 0 : -1" :inert="!position" :aria-level="entry.depth" :aria-label="String(entry.data[options.nodeTitle] ?? entry.key)" :aria-expanded="hasChildren ? childrenVisible : undefined" :aria-selected="context.selected.value === entry.key" :aria-busy="context.loading.has(entry.key)" :aria-hidden="!position"
     :draggable="options.draggable ?? options.drag ?? false" @mouseenter="hovered = true" @mouseleave="hovered = false" @focusin="focused = true" @focusout="focusout" @click.stop="context.select(entry)" @keydown.capture="pointerFocused = false" @keydown="keydown" @dragstart="context.dragStart(entry, $event)" @dragover="context.dragOver(entry, $event)" @dragleave="context.dragLeave" @dragend="context.dragEnd" @drop="context.drop(entry, $event)" @pointerdown.capture="pointerFocused = true" @pointerdown="context.touchStart(entry, $event)">

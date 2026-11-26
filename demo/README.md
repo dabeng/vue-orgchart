@@ -24,8 +24,8 @@ The demo application lives in [src/demo](../src/demo/), separate from the publis
 | `data-prop-compact` | Native two- and three-column branch grids, including nested and callback-selected branches |
 | `level-offset` | Visual depth offset |
 | `nodes-of-different-widths` | 230px / 130px children |
-| `responsive-design` | Responsive viewport, pan/zoom/minimap |
-| `10000-nodes` | 10,000 loaded nodes, depth 2 initially, expand-all |
+| `responsive-design` | Original 17-node tree; vertical branches at viewport widths up to 576px, horizontal hierarchy above that |
+| `10000-nodes` | All 10,000 nodes rendered on load: 99 branches with 100 vertically stacked leaves each, with console timings |
 | `pan-zoom` | Background pointer pan and wheel zoom |
 | `minimap` | Preview drag/click/wheel/keyboard |
 | `toggle-sibs-resp` | Independent left/right controls |

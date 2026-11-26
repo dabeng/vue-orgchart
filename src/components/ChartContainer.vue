@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { Download, LoaderCircle } from '@lucide/vue'
 import OrganizationChartNode from './OrganizationChartNode.vue'
 import { useChart } from './useChart'
@@ -9,6 +10,8 @@ const props = withDefaults(defineProps<ChartOptions>(), { visibleLevel: 999, dra
 const emit = defineEmits(['node-click', 'select', 'deselect', 'change', 'update:data', 'update:datasource', 'init', 'show', 'hide', 'node-drop', 'load', 'load-error', 'zoom', 'pan', 'export', 'export-error'])
 const context = useChart(props, emit)
 const { host, chart, layout, options, allNodes, transform, viewport, disposed, minimapViewport, exporting, panning } = context
+const childLinks = computed(() => layout.value.links.filter(link => !link.spouse))
+const spouseLinks = computed(() => layout.value.links.filter(link => link.spouse))
 defineExpose(context.api)
 function download() { context.api.export().catch(() => {}) }
 </script>
@@ -20,9 +23,10 @@ function download() { context.api.export().catch(() => {}) }
         <div v-if="!disposed" ref="chart" class="orgchart" :class="[options.direction, options.chartClass, { 'oc-relating': context.relating.value, 'oc-instant-compact': context.instantCompact.value }]" :style="{ width: `${layout.width}px`, height: `${layout.height}px`, transform }" role="tree" aria-label="Organization chart">
           <svg class="oc-connections" :width="layout.width" :height="layout.height" aria-hidden="true">
             <rect v-for="[key, group] in layout.compactGroups" :key="key" class="oc-compact-group" :class="{ 'oc-compact-nested': group.depth % 2 }" :data-compact-group="key" :x="group.x" :y="group.y" :width="group.width" :height="group.height" />
-            <TransitionGroup name="oc-link" :css="!context.instantCompact.value" tag="g"><path v-for="link in layout.links" :key="link.key" :data-source="link.source" :data-target="link.target" :class="[{ 'oc-spouse-link': link.spouse }, `oc-motion-${context.relationMotions.value.get(link.target) ?? 'children'}`]" :d="link.points.map(([px, py], index) => `${index ? 'L' : 'M'} ${px} ${py}`).join(' ')" /></TransitionGroup>
+            <path v-for="link in childLinks" :key="link.key" :data-source="link.source" :data-target="link.target" :d="link.points.map(([px, py], index) => `${index ? 'L' : 'M'} ${px} ${py}`).join(' ')" />
+            <TransitionGroup name="oc-link" :css="!context.instantCompact.value" tag="g"><path v-for="link in spouseLinks" :key="link.key" :data-source="link.source" :data-target="link.target" class="oc-spouse-link" :class="`oc-motion-${context.relationMotions.value.get(link.target) ?? 'children'}`" :d="link.points.map(([px, py], index) => `${index ? 'L' : 'M'} ${px} ${py}`).join(' ')" /></TransitionGroup>
           </svg>
-          <OrganizationChartNode v-for="entry in allNodes" :key="entry.key" :entry="entry" :context="context"><template v-if="$slots.default || $slots.node" #default="scope"><slot :name="$slots.node ? 'node' : 'default'" v-bind="scope" /></template></OrganizationChartNode>
+          <OrganizationChartNode v-for="entry in allNodes" :key="entry.key" v-memo="[entry, context.revision.value, $slots.node, $slots.default]" :entry="entry" :context="context"><template v-if="$slots.default || $slots.node" #default="scope"><slot :name="$slots.node ? 'node' : 'default'" v-bind="scope" /></template></OrganizationChartNode>
         </div>
       </div>
       <slot v-if="!allNodes.length" name="empty"><div class="oc-empty" role="status">No nodes</div></slot>

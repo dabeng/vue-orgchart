@@ -17,6 +17,9 @@ body { margin: 0; } button, input, select, textarea { font: inherit; } button { 
 .settings-row { display: flex; flex-wrap: wrap; align-items: center; gap: 15px; padding: 8px 12px; border: 1px solid var(--border); background: #fdfefd; font-size: 11px; color: var(--muted); } .settings-row label { display: flex; align-items: center; gap: 5px; } .settings-row input[type=checkbox] { accent-color: var(--accent); } .depth-control { margin-left: auto; } .depth-control input { width: 50px; padding: 4px; } .filter-field input { width: 135px; padding: 4px 6px; }
 .demo-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; } .demo-actions .command-button[aria-pressed=true] { border-color: var(--accent); background: #e7f2ec; }
 .demo-chart { height: clamp(340px, 56vh, 640px); } .demo-chart .orgchart-container { border-top: 0; }
+.demo-chart.demo-large-chart { height: max(400px, calc(100dvh - 260px)); }
+.orgchart.demo-large { --oc-row-height: 26px; }
+.orgchart.demo-large .title { min-height: 24px; padding: 2px 8px; border-radius: 5px; font-size: 12px; }
 .demo-report-active { --demo-report-color: #9b450b; }
 .demo-report-active .node[data-report-path] .title { background: var(--demo-report-color); }
 .demo-report-active .oc-connections path[data-report-path] { stroke: var(--demo-report-color); stroke-width: 3; }
