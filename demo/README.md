@@ -1,6 +1,12 @@
 # Demo Catalogue
 
-Run `npm ci` and `npm run dev`. Open `http://127.0.0.1:5173/#/ID` using the IDs below. All 46 source OrgChart demo pages have an equivalent scenario. `src/demos.ts` holds the source data/options; `src/App.vue` provides shared executable editing, visibility, source editing, navigation and export controls, avoiding copied boilerplate in 46 components.
+Run `npm ci` and `npm run dev`. Open `http://127.0.0.1:5173/#/ID` using the IDs below. All 46 source OrgChart demo pages have an equivalent scenario.
+
+The demo application lives in [src/demo](../src/demo/), separate from the published chart library in [src/components](../src/components/):
+
+- [main.js](../src/demo/main.js), [App.vue](../src/demo/App.vue), and [app.css](../src/demo/app.css) provide the demo entry, shared workbench, and styles.
+- [demos.ts](../src/demo/demos.ts) defines the route catalogue, datasets, and chart options.
+- [demo-source.ts](../src/demo/demo-source.ts) generates copyable examples. It shares [demo-highlights.ts](../src/demo/demo-highlights.ts) and [GeoMap.vue](../src/demo/GeoMap.vue) with the live demos.
 
 | Original page / route ID | Vue scenario |
 | --- | --- |
@@ -27,14 +33,14 @@ Run `npm ci` and `npm run dev`. Open `http://127.0.0.1:5173/#/ID` using the IDs 
 | `expand-to-given-depth` | Numeric depth input |
 | `center-on-selected-node` | Selection centers node |
 | `filter-node` | Keyword/path filtering |
-| `report-path` | Root-to-member record path |
-| `get-related-nodes` | Loaded relation visibility |
-| `edit-chart` | Add parent/children/siblings, remove/move |
-| `edit-hybrid-chart` | Same edits with vertical layout |
+| `report-path` | Draw and clear the reporting chain on the chart |
+| `get-related-nodes` | Highlight parent, children and siblings with a matching legend |
+| `edit-chart` | Add a parent or batch-add children and siblings; remove or move nodes |
+| `edit-hybrid-chart` | Same batch editing with vertical branches |
 | `drag-drop` | Drag criteria and cycle prevention |
 | `drag-drop-hybrid-chart` | Drag with vertical branches |
-| `get-hierarchy` | Full hierarchy inspector |
-| `get-flat-datasource` | Flat export inspector |
+| `get-hierarchy` | Export hierarchy button opens nested JSON output |
+| `get-flat-datasource` | Export flat datasource button opens flat JSON records |
 | `color-coded` | Branch classes and CSS palette |
 | `option-createNode` | DOM callback adds ID tags |
 | `custom-template` | Vue VNode template with portraits/mail links |

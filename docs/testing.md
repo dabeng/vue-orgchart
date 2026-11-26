@@ -19,14 +19,17 @@ On Linux CI, install the browser's system dependencies with `npx playwright inst
 | `test/navigation.test.ts` | Pointer capture, pan, pinch, drag alias/criteria, touch-hold cleanup, minimap, centering and v-model echoes |
 | `test/export.test.ts` | PNG encoding/object URL cleanup, PDF logical dimensions, capture clone, asynchronous busy/error/disposal behavior |
 | `test/demos.test.ts` | Exact original 46-demo catalogue and valid data/options for every scenario |
-| `test/e2e/demos.spec.ts` | Every demo at desktop/mobile, image rendering, no runtime errors/page overflow, JSON editing, actual drag/drop, remote loads, real PNG/PDF downloads and nonblank map canvas |
+| `test/e2e/demos.spec.ts` | All 46 demos on desktop/mobile, node expand/collapse, relation animation in all four directions, image rendering, no runtime errors/page overflow, JSON editing, actual drag/drop, remote loads, real PNG/PDF downloads and nonblank map canvas |
 | `test/e2e/family.spec.ts` | Both spouses' shared controls, all directions and family variants, household restoration, repeated nested operations, focus, removal and reduced-motion cleanup |
+
+The demo matrix uses pointer and keyboard actions on the node controls and checks settled visibility and `aria-expanded`. It covers children, parents and both sibling controls, including initially collapsed, on-demand, compact, vertical, hybrid and family branches. The 10,000-node demo checks a single compact department and the chart-wide expand/collapse commands.
 
 Examples:
 
 ```sh
 npm test -- test/tree.test.ts
 npm test -- test/component.test.ts test/export.test.ts
+npm run test:e2e -- --grep 'demo:'
 npm run test:e2e -- --project=desktop-chromium --grep family
 npm run test:e2e -- --project=mobile-chromium
 npm run test:coverage

@@ -73,8 +73,10 @@ export function layoutChart(model: ChartModel, options: ResolvedOptions, visible
     descendants.forEach((child, index) => {
       const [dx, dy] = positions[index]!
       const destinationX = dx + child.width / 2
-      const target = child.boxes.keys().next().value!
-      if (headerHeight) block.links.push({ key: JSON.stringify(['child', active[0]!.key, target]), source: active[0]!.key, target, points: vertical || compact ? [[originX, originY], [originX, originY + 16], [dx - 12, originY + 16], [dx - 12, dy + 12], [dx, dy + 12]] : [[originX, originY], [originX, originY + gap / 2], [destinationX, originY + gap / 2], [destinationX, dy]] })
+      const [target, targetBox] = child.boxes.entries().next().value!
+      const targetTop = dy + targetBox.y
+      const targetLeft = dx + targetBox.x
+      if (headerHeight) block.links.push({ key: JSON.stringify(['child', active[0]!.key, target]), source: active[0]!.key, target, points: vertical || compact ? [[originX, originY], [originX, originY + 16], [targetLeft - 12, originY + 16], [targetLeft - 12, targetTop + 12], [targetLeft, targetTop + 12]] : [[originX, originY], [originX, originY + gap / 2], [destinationX, originY + gap / 2], [destinationX, targetTop]] })
       merge(block, child, dx, dy)
     })
     return block

@@ -10,7 +10,7 @@ const active = computed(() => hovered.value || focused.value || props.context.se
 const childOwner = computed(() => { props.context.revision.value; return props.context.owner(props.entry) })
 const hasChildren = computed(() => { props.context.revision.value; return childOwner.value.children.length > 0 })
 const childrenVisible = computed(() => { props.context.revision.value; return props.context.getNodeState(childOwner.value.key, 'children').visible })
-const parentVisible = computed(() => props.context.getNodeState(props.entry.key, 'parent').visible)
+const parentVisible = computed(() => { props.context.revision.value; return props.context.getNodeState(props.entry.key, 'parent').visible })
 type Edge = 'top' | 'bottom' | 'left' | 'right'
 function arrow(edge: Edge, visible: boolean) {
   const sides = {

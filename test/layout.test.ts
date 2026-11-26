@@ -33,6 +33,16 @@ describe('layout and option contracts', () => {
     expect(layout.boxes.get('a')?.width).toBe(250); expect(layout.boxes.get('a')?.y).toBe(134)
     expect(layout.links.some(link => link.spouse)).toBe(true)
   })
+  it.each(['t2b', 'b2t', 'l2r', 'r2l'] as const)('connects to the offset node edge in %s', direction => {
+    const model = new ChartModel({ id: 'root', children: [{ id: 'unshifted' }, { id: 'shifted', levelOffset: 2 }] })
+    const layout = layoutChart(model, resolveOptions({ direction }), () => true, () => true)
+    const { x, y, width, height } = layout.boxes.get('shifted')!
+    const entryPoint = {
+      t2b: [x + width / 2, y], b2t: [x + width / 2, y + height],
+      l2r: [x, y + height / 2], r2l: [x + width, y + height / 2],
+    }[direction]
+    expect(layout.links.find(link => link.target === 'shifted')?.points.at(-1)).toEqual(entryPoint)
+  })
   it('supports ten thousand loaded nodes', () => {
     const model = new ChartModel({ id: 'root', children: Array.from({ length: 99 }, (_, branch) => ({ id: `b${branch}`, children: Array.from({ length: 100 }, (_, child) => ({ id: `${branch}-${child}` })) })) })
     expect(model.nodes.size).toBe(10000)

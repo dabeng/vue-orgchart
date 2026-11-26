@@ -1,10 +1,68 @@
-import { expect, test } from '@playwright/test'
-import { demos } from '../../src/demos'
+import { expect, test, type Locator, type Page } from '@playwright/test'
+import { demos } from '../../src/demo/demos'
+
+function chartNodes(chart: Locator, ids: string[]) {
+  return chart.locator(ids.map(id => `.node[id="${id}"]`).join(', '))
+}
+
+async function checkChildToggles(page: Page, anchorId: string, childIds: string[], initiallyExpanded = true, keys: (string | null)[] = [null, 'Enter', null, 'Space']) {
+  const chart = page.locator('.orgchart')
+  const anchor = chartNodes(chart, [anchorId])
+  const children = chartNodes(chart, childIds)
+  await expect(children).toHaveCount(childIds.length)
+  await expect(children.filter({ visible: true })).toHaveCount(initiallyExpanded ? childIds.length : 0)
+
+  for (const [index, key] of keys.entries()) {
+    const expanded = index % 2 === 0 ? !initiallyExpanded : initiallyExpanded
+    await expect(anchor).toBeVisible()
+    await anchor.focus()
+    const control = anchor.getByRole('button', { name: expanded ? 'Expand children' : 'Collapse children', exact: true })
+    await expect(control).toHaveAttribute('aria-expanded', String(!expanded))
+    if (key) await control.press(key)
+    else await control.click()
+
+    await expect(chart).not.toHaveClass(/oc-relating/)
+    await expect(anchor).toBeVisible()
+    await expect(anchor).toHaveAttribute('aria-expanded', String(expanded))
+    await expect(children.filter({ visible: true })).toHaveCount(expanded ? childIds.length : 0)
+  }
+}
+
+async function checkRelatedToggle(chart: Locator, anchorId: string, targetIds: string[], hideLabel: string, showLabel = hideLabel) {
+  await test.step(`${hideLabel} and restore from node ${anchorId}`, async () => {
+    const anchor = chartNodes(chart, [anchorId])
+    const targets = chartNodes(chart, targetIds).filter({ visible: true })
+    await expect(targets).toHaveCount(targetIds.length)
+    await anchor.focus()
+    const hide = anchor.getByRole('button', { name: hideLabel, exact: true })
+    await expect(hide).toBeVisible()
+    await hide.click()
+    await expect(chart).not.toHaveClass(/oc-relating/)
+    await expect(targets).toHaveCount(0)
+    await expect(anchor).toBeVisible()
+    await anchor.focus()
+    const show = anchor.getByRole('button', { name: showLabel, exact: true })
+    await expect(show).toBeVisible()
+    await show.press('Enter')
+    await expect(chart).not.toHaveClass(/oc-relating/)
+    await expect(targets).toHaveCount(targetIds.length)
+    await expect(anchor).toBeVisible()
+  })
+}
+
+const branchLayouts = new Map([
+  ['data-prop-compact', 'compact'], ['options-compact-drag', 'compact'],
+  ['data-prop-hybrid', 'vertical'], ['vertical-level', 'vertical'], ['edit-hybrid-chart', 'vertical'],
+  ['drag-drop-hybrid-chart', 'vertical'], ['options-hybrid-navigation', 'vertical'],
+])
+
 for (const demo of demos) {
   test(`demo: ${demo.id}`, async ({ page }) => {
+    if (demo.kind === 'large') test.slow()
     const errors: string[] = []; page.on('pageerror', error => errors.push(error.message))
     await page.goto(`/#/${demo.id}`)
     await expect(page.getByRole('heading', { name: demo.name, exact: true })).toBeVisible()
+    await expect(page.locator('.view-heading').getByText(demo.subtitle, { exact: true })).toBeVisible()
     const source = page.getByRole('region', { name: 'Source code' })
     await expect(source.getByRole('tab', { name: `${demo.id}.vue`, exact: true })).toHaveAttribute('aria-selected', 'true')
     await expect(source.getByRole('tabpanel')).toContainText("from 'vue-organization-chart'")
@@ -25,10 +83,48 @@ for (const demo of demos) {
     await expect.poll(rootInViewport).toBe(true)
     if (demo.kind === 'large') {
       await expect(page.locator('.node')).toHaveCount(10000)
+      await test.step('toggle a compact department without expanding the other departments', async () => {
+        const chart = page.locator('.orgchart')
+        await expect(chart.locator('.node:visible')).toHaveCount(100)
+        await expect(chartNodes(chart, ['branch-0'])).toHaveAttribute('data-layout', 'compact')
+        await checkChildToggles(page, 'branch-0', Array.from({ length: 100 }, (_, index) => `member-0-${index}`), false, [null, 'Enter'])
+        await expect(chart.locator('.node:visible')).toHaveCount(100)
+      })
       await page.getByRole('button', { name: 'Expand all', exact: true }).click()
       await expect(page.locator('.node:visible')).toHaveCount(10000)
       await page.getByRole('button', { name: 'Collapse all', exact: true }).click()
       await expect(page.locator('.node:visible')).toHaveCount(1)
+    } else {
+      const chart = page.locator('.orgchart')
+      const branchLayout = branchLayouts.get(demo.id)
+      const family = demo.kind?.startsWith('family')
+      await test.step('toggle children with pointer, Enter and Space', async () => {
+        if (demo.kind === 'loading') {
+          await page.locator('.node[id="1"]').getByRole('button', { name: 'Load children', exact: true }).click()
+          await checkChildToggles(page, '1', ['1-a', '1-c'])
+        } else if (family) {
+          await checkChildToggles(page, '1', ['2', '3', '9', '10'])
+        } else if (['default-collapsed', 'expand-to-given-depth'].includes(demo.id)) {
+          await checkChildToggles(page, '2', ['4', '5'], false)
+        } else if (branchLayout) {
+          await expect(chartNodes(chart, ['2'])).toHaveAttribute('data-layout', branchLayout)
+          await checkChildToggles(page, '2', ['4', '5'])
+        } else {
+          await checkChildToggles(page, '1', ['2', '3'])
+        }
+      })
+      if (demo.kind === 'loading') {
+        await checkRelatedToggle(chart, '1-c', ['1-a'], 'Toggle left siblings')
+        await checkRelatedToggle(chart, '1-a', ['1-c'], 'Toggle right siblings')
+        await page.getByRole('button', { name: 'Load ancestors', exact: true }).click()
+        await expect(chartNodes(chart, ['ancestor-1'])).toBeVisible()
+        await checkRelatedToggle(chart, '1', ['ancestor-2'], 'Hide ancestors', 'Show parent')
+        await expect(chartNodes(chart, ['ancestor-1'])).not.toBeVisible()
+      } else {
+        await checkRelatedToggle(chart, '3', family ? ['2', '10'] : ['2'], 'Toggle left siblings')
+        await checkRelatedToggle(chart, family ? '3' : '2', family ? ['2', '10'] : ['3'], 'Toggle right siblings')
+        await checkRelatedToggle(chart, family ? '3' : '2', family ? ['1', '8'] : ['1'], 'Hide ancestors', 'Show parent')
+      }
     }
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)
     expect(overflow).toBe(false)
@@ -99,10 +195,144 @@ test('source code switches files and demos, supports keyboard navigation and cop
   await page.screenshot({ path: test.info().outputPath('demo-source.png'), fullPage: true })
 })
 
+test('level offset matches the original rows and keeps connectors attached', async ({ page }) => {
+  await page.goto('/#/level-offset')
+  const chart = page.locator('.orgchart')
+  await expect(chart.locator('.node .title')).toHaveText(['Lao Lao', 'Bo Miao', 'Su Miao', 'Tie Hua', 'Hei Hei', 'Dan Dan', 'Pang Pang', 'Hong Miao'])
+  await expect.poll(() => chart.evaluate(surface => {
+    const nodes = Array.from(surface.querySelectorAll<HTMLElement>('.node'))
+    const { top } = surface.getBoundingClientRect()
+    const rows = new Map<number, HTMLElement[]>()
+    for (const node of nodes) {
+      const row = Math.round(node.getBoundingClientRect().top - top)
+      rows.set(row, [...(rows.get(row) ?? []), node])
+    }
+    return [...rows.entries()].sort(([first], [second]) => first - second)
+      .map(([, row]) => row.sort((first, second) => first.offsetLeft - second.offsetLeft).map(node => node.id))
+  })).toEqual([['1'], ['3'], ['2', '4', '5'], ['6', '7', '8']])
+  for (const [source, target] of [['1', '2'], ['3', '7'], ['1', '8']]) {
+    const link = chart.locator(`.oc-connections path[data-source="${source}"][data-target="${target}"]`)
+    await expect.poll(() => link.evaluate((path: SVGPathElement) => {
+      const box = path.closest('.orgchart')!.querySelector(`.node[id="${path.dataset.target}"]`)!.getBoundingClientRect()
+      const endpoint = path.getPointAtLength(path.getTotalLength()).matrixTransform(path.getScreenCTM()!)
+      return Math.max(Math.abs(endpoint.x - (box.left + box.width / 2)), Math.abs(endpoint.y - box.top))
+    })).toBeLessThan(1)
+  }
+})
+
+test('reporting path can be drawn on the chart and cleared', async ({ page }) => {
+  await page.goto('/#/report-path')
+  const chart = page.locator('.orgchart')
+  const draw = page.getByRole('button', { name: 'Draw reporting path' })
+  const clear = page.getByRole('button', { name: 'Clear reporting path' })
+  await expect(draw).toBeInViewport()
+  await expect(draw).toBeDisabled()
+  await chartNodes(chart, ['6']).click()
+  await draw.click()
+  await expect(chart.locator('.node[data-report-path]')).toHaveCount(4)
+  await expect(chartNodes(chart, ['6'])).toHaveAttribute('data-report-path', '')
+  await expect(chartNodes(chart, ['3'])).not.toHaveAttribute('data-report-path')
+  await expect(chart.locator('.oc-connections path[data-report-path]')).toHaveCount(3)
+  const links = chart.locator('.oc-connections path[data-report-path]')
+  await expect(links.first()).toHaveCSS('stroke-width', '3px')
+  await page.getByRole('button', { name: 'Bottom to top', exact: true }).click()
+  await expect(chart).toHaveClass(/b2t/)
+  await expect(links).toHaveCount(3)
+  await expect(links.first()).toHaveCSS('stroke-width', '3px')
+  await expect(page.locator('.inspector pre')).toContainText('Pang Pang')
+  await clear.click()
+  await expect(chart.locator('[data-report-path]')).toHaveCount(0)
+  await expect(chartNodes(chart, ['3'])).toBeVisible()
+  await expect(clear).toBeDisabled()
+})
+
+test('related nodes are highlighted with a matching legend', async ({ page }) => {
+  await page.goto('/#/get-related-nodes')
+  const chart = page.locator('.orgchart')
+  const legend = page.getByRole('list', { name: 'Node relationships' })
+  await expect(legend).toBeInViewport()
+  await expect(legend.getByRole('listitem')).toHaveText(['Parent', 'Children', 'Siblings'])
+  await chartNodes(chart, ['2']).click()
+  const parent = chartNodes(chart, ['1'])
+  await expect(parent).toHaveAttribute('data-node-relation', 'parent')
+  await expect(parent.locator('.title')).toHaveCSS('background-color', 'rgb(48, 91, 147)')
+  await expect(chartNodes(chart, ['3'])).toHaveAttribute('data-node-relation', 'siblings')
+  await expect(chartNodes(chart, ['4', '5']).and(chart.locator('[data-node-relation="children"]'))).toHaveCount(2)
+  await chartNodes(chart, ['3']).press('Enter')
+  await expect(chartNodes(chart, ['2'])).toHaveAttribute('data-node-relation', 'siblings')
+  await expect(chartNodes(chart, ['4', '5']).and(chart.locator('[data-node-relation]'))).toHaveCount(0)
+  await expect(chartNodes(chart, ['8', '9']).and(chart.locator('[data-node-relation="children"]'))).toHaveCount(2)
+})
+
+for (const [id, label, tab, field] of [
+  ['get-hierarchy', 'Export hierarchy', 'Hierarchy', 'children'],
+  ['get-flat-datasource', 'Export flat datasource', 'Flat records', 'parent_id'],
+]) {
+  test(`datasource output: ${id}`, async ({ page }) => {
+    await page.goto(`/#/${id}`)
+    const command = page.getByRole('button', { name: label, exact: true })
+    await expect(command).toBeInViewport()
+    await page.getByRole('tab', { name: 'Datasource', exact: true }).click()
+    await command.click()
+    await expect(page.getByRole('tab', { name: tab, exact: true })).toHaveAttribute('aria-selected', 'true')
+    const result = page.locator('.inspector pre')
+    await expect(result).toBeFocused()
+    await expect(result).toBeInViewport({ ratio: 1 })
+    await expect(result).toContainText(`"${field}"`)
+  })
+}
+
+test('reload data switches between three charts', async ({ page }) => {
+  await page.goto('/#/reload-data')
+  const controls = page.getByRole('group', { name: 'Reload data' })
+  const chart = page.locator('.demo-chart')
+  await expect(chart.locator('.node')).toHaveCount(9)
+  await page.getByRole('button', { name: 'Bottom to top', exact: true }).click()
+  for (const [index, count, name] of [[2, 3, 'Su Miao'], [3, 4, 'Hei Hei'], [1, 9, 'Lao Lao']] as const) {
+    const button = controls.getByRole('button', { name: `Chart ${index}`, exact: true })
+    await expect(button).toBeInViewport({ ratio: 1 })
+    await button.click()
+    await expect(button).toHaveAttribute('aria-pressed', 'true')
+    await expect(controls.getByRole('button', { pressed: true })).toHaveCount(1)
+    await expect(chart.locator('.node')).toHaveCount(count)
+    await expect(chart.locator('.node').first()).toContainText(name)
+  }
+  await expect(page.getByRole('button', { name: 'Bottom to top', exact: true })).toHaveClass(/active/)
+})
+
+for (const [id, command, parent] of [
+  ['edit-chart', 'Add children', '2'],
+  ['edit-hybrid-chart', 'Add siblings', '1'],
+] as const) {
+  test(`batch editing: ${id}`, async ({ page }) => {
+    await page.goto(`/#/${id}`)
+    await page.locator('.node[id="2"]').click()
+    const editor = page.locator('.demo-chart + .edit-section')
+    await expect(editor.getByRole('strong')).toHaveText('Bo Miao')
+    const addRow = editor.getByRole('button', { name: 'Add node row' })
+    await addRow.scrollIntoViewIfNeeded()
+    await expect(addRow).toBeInViewport()
+    await editor.getByRole('textbox', { name: 'New node name', exact: true }).fill('Batch Alpha')
+    await addRow.click()
+    await editor.getByRole('textbox', { name: 'New node name 2' }).fill('Batch Beta')
+    await addRow.click()
+    await editor.getByRole('button', { name: 'Remove node row 3' }).click()
+    await expect(editor.getByRole('button', { name: 'Add parent' })).toBeDisabled()
+    await editor.getByRole('button', { name: command, exact: true }).click()
+    const added = page.locator(`.node[data-parent="${parent}"][id^="new-"]`)
+    await expect(added.locator('.title')).toHaveText(['Batch Alpha', 'Batch Beta'])
+    await editor.getByRole('button', { name: 'Reset node fields' }).click()
+    await expect(editor.getByRole('textbox', { name: 'New node name 2' })).toHaveCount(0)
+    await expect(added).toHaveCount(2)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)).toBe(false)
+  })
+}
+
 test('editing, JSON validation and snapshots', async ({ page }) => {
   await page.goto('/#/edit-chart'); await page.locator('.node[id="1"]').click()
-  await page.getByRole('textbox', { name: 'New node name' }).fill('Test colleague')
-  await page.getByRole('button', { name: 'Add child', exact: true }).click()
+  const editor = page.locator('.demo-chart + .edit-section')
+  await editor.getByRole('textbox', { name: 'New node name' }).fill('Test colleague')
+  await editor.getByRole('button', { name: 'Add child', exact: true }).click()
   await expect(page.locator('.node[id="new-1"]')).toContainText('Test colleague')
   await page.getByRole('tab', { name: 'Flat records' }).click(); await expect(page.locator('.inspector pre')).toContainText('"parent_id": "1"')
   await page.locator('.node[id="new-1"]').click(); await page.getByRole('button', { name: 'Remove selected branch' }).click(); await expect(page.locator('.node[id="new-1"]')).toHaveCount(0)
@@ -115,12 +345,6 @@ test('filter, depth and keyboard navigation', async ({ page }) => {
   await page.getByRole('button', { name: 'Clear filter' }).click(); await expect(page.locator('.node[id="3"]')).toBeVisible()
   await page.getByRole('button', { name: 'Collapse all', exact: true }).click(); await expect(page.locator('.node[id="2"]')).not.toBeVisible()
   await page.locator('.node[id="1"]').focus(); await page.keyboard.press('ArrowDown'); await expect(page.locator('.node[id="2"]')).toBeVisible()
-})
-
-test('loads remote children and ancestors', async ({ page }) => {
-  await page.goto('/#/ondemand-loading-data'); await page.locator('.node[id="1"]').getByRole('button', { name: 'Load children' }).click()
-  await expect(page.locator('.node[id="1-a"]')).toBeVisible()
-  await page.getByRole('button', { name: 'Load ancestors' }).click(); await expect(page.locator('.node[id="ancestor-1"]')).toBeVisible()
 })
 
 test('exports actual PNG and PDF files', async ({ page }) => {

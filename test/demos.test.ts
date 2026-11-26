@@ -4,8 +4,8 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { compileScript, compileTemplate, parse } from 'vue/compiler-sfc'
-import { buildDemo, demos } from '../src/demos'
-import { demoSource } from '../src/demo-source'
+import { buildDemo, demos, reloadDatasources } from '../src/demo/demos'
+import { demoSource } from '../src/demo/demo-source'
 import { ChartModel, flatToFamily } from '../src/components/tree'
 import { resolveOptions } from '../src/components/options'
 describe('demo catalogue', () => {
@@ -25,7 +25,13 @@ describe('demo catalogue', () => {
     }
     const config = buildDemo(demo.id)
     const dataFile = files.find(file => file.name === 'data.json')
-    if (dataFile) expect(demo.id === 'family-tree-with-flat-datasource' ? flatToFamily(JSON.parse(dataFile.code)) : JSON.parse(dataFile.code)).toEqual(config.data)
+    if (dataFile) {
+      const fixture = JSON.parse(dataFile.code)
+      if (demo.id === 'reload-data') {
+        expect(fixture).toEqual(reloadDatasources)
+        expect(fixture[0]).toEqual(config.data)
+      } else expect(demo.id === 'family-tree-with-flat-datasource' ? flatToFamily(fixture) : fixture).toEqual(config.data)
+    }
     for (const [key, value] of Object.entries(config.options)) {
       expect(files[0]!.code).toContain(`${key}: `)
       if (typeof value !== 'function') expect(files[0]!.code).toContain(`${key}: ${JSON.stringify(value)}`)
@@ -40,7 +46,9 @@ describe('demo catalogue', () => {
     ['ondemand-loading-data', 'loadChildren('], ['report-path', 'getPath('],
     ['get-related-nodes', 'getNodeState('], ['export-chart-pdf', "export('OrgChart', 'pdf')"],
     ['center-on-selected-node', 'centerOnNode('], ['ajax-datasource', "fetch('/data/company.json')"],
-    ['ul-datasource', "document.createElement('ul')"], ['reload-data', 'structuredClone(initialData)'],
+    ['ul-datasource', "document.createElement('ul')"], ['reload-data', 'structuredClone(reloadDatasources[index]!)'],
+    ['report-path', 'markReportingPath(path.value'], ['get-related-nodes', 'instance.getRelatedNodes(id, relation)'],
+    ['edit-chart', 'addChildren(selectedId.value, nodes)'], ['edit-hybrid-chart', 'addSiblings(selectedId.value, nodes)'],
     ['family-tree-with-flat-datasource', 'flatToFamily(initialData)'],
   ])('%s includes its core interaction', (id, expected) => { expect(demoSource(id!)[0]!.code).toContain(expected) })
 })

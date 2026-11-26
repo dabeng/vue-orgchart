@@ -1,11 +1,12 @@
-import { buildDemo } from './demos'
+import { buildDemo, reloadDatasources } from './demos'
 import { ChartModel } from './components/tree'
 import mapSource from './GeoMap.vue?raw'
+import highlightSource from './demo-highlights.ts?raw'
 
 export interface DemoSourceFile { name: string; language: string; code: string }
 
 const callbacks: Record<string, Record<string, string>> = {
-  'options-compact-drag': { compact: '(node) => (node.children?.length ?? 0) >= 2' },
+  'options-compact-drag': { compact: `(node) => node.id === '2'` },
   'drag-drop': { dropCriteria: `(dragged, _parent, target) => !(dragged.querySelector('.content')?.textContent?.includes('manager') && target.querySelector('.content')?.textContent?.includes('engineer'))` },
   'option-createNode': { createNode: `(element, node) => {
     const tag = document.createElement('span')
@@ -20,17 +21,52 @@ const callbacks: Record<string, Record<string, string>> = {
   ])` },
 }
 
-const actions: Record<string, { script: string; template: string; event?: string }> = {
-  'reload-data': { script: `function reload() { data.value = structuredClone(initialData) }`, template: '<button @click="reload">Reload data</button>' },
+const actions: Record<string, { script: string; template: string; event?: string; toolbar?: string }> = {
+  'reload-data': { script: `const reloadIndex = ref(0)
+function reload(index: number) {
+  data.value = structuredClone(reloadDatasources[index]!)
+  reloadIndex.value = index
+}`, template: `<div role="group" aria-label="Reload data">
+    <span>Reload data</span>
+    <button v-for="(_, index) in reloadDatasources" :key="index" :aria-pressed="reloadIndex === index" @click="reload(index)">Chart {{ index + 1 }}</button>
+  </div>` },
   'expand-to-given-depth': { script: 'const depth = ref(2)', template: '<input v-model.number="depth" type="number" min="0" aria-label="Expansion depth" />\n  <button @click="chart?.expandAll(depth)">Apply depth</button>' },
   'center-on-selected-node': { script: 'function select(node: OrgNode) { chart.value?.centerOnNode(node.id!) }', template: '', event: '@node-click="select"' },
   'filter-node': { script: 'const query = ref(\'\')', template: '<input v-model="query" aria-label="Filter nodes" @input="chart?.filterNodes(query)" />\n  <button @click="query = \'\'; chart?.clearFilter()">Clear filter</button>' },
-  'report-path': { script: 'const path = ref<OrgNode[]>([])\nfunction select(node: OrgNode) { path.value = chart.value?.getPath(node.id!) ?? [] }', template: '<pre>{{ JSON.stringify(path, null, 2) }}</pre>', event: '@node-click="select"' },
-  'get-related-nodes': { script: `const relations = ref({})
+  'report-path': { script: `const selectedId = ref<OrgNode['id']>()
+const path = shallowRef<OrgNode[]>([])
+const active = ref(false)
+function updatePath() {
+  path.value = selectedId.value != null ? chart.value?.getPath(selectedId.value) ?? [] : []
+}
 function select(node: OrgNode) {
-  relations.value = Object.fromEntries((['parent', 'children', 'siblings'] as const)
-    .map(relation => [relation, chart.value?.getNodeState(node.id!, relation)]))
-}`, template: '<pre>{{ JSON.stringify(relations, null, 2) }}</pre>', event: '@node-click="select"' },
+  if (node.id !== selectedId.value) active.value = false
+  selectedId.value = node.id
+  updatePath()
+}
+watchPostEffect(onCleanup => {
+  if (active.value && chart.value) onCleanup(markReportingPath(path.value.map(node => chart.value!.getNode(node.id!))))
+})`, template: '<pre>{{ JSON.stringify(path, null, 2) }}</pre>', event: '@node-click="select" @show="updatePath" @hide="updatePath" :class="{ \'demo-report-active\': active }"', toolbar: `<button :disabled="!path.length || active" @click="active = true">Draw reporting path</button>
+  <button :disabled="!active" @click="active = false">Clear reporting path</button>` },
+  'get-related-nodes': { script: `const selectedId = ref<OrgNode['id']>()
+const relations = shallowRef({})
+function updateRelations() {
+  const id = selectedId.value
+  if (id != null && chart.value) relations.value = Object.fromEntries(relationLegend.map(([relation]) => [relation, chart.value!.getNodeState(id, relation)]))
+}
+function select(node: OrgNode) {
+  selectedId.value = node.id
+  updateRelations()
+}
+watchPostEffect(onCleanup => {
+  const instance = chart.value
+  const id = selectedId.value
+  if (id != null && instance && Object.keys(relations.value).length) {
+    onCleanup(markRelatedNodes(relationLegend.map(([relation]) => [relation, instance.getRelatedNodes(id, relation)])))
+  }
+})`, template: '<pre>{{ JSON.stringify(relations, null, 2) }}</pre>', event: '@node-click="select" @show="updateRelations" @hide="updateRelations"', toolbar: `<ul class="relation-legend" aria-label="Node relationships">
+    <li v-for="[relation, label] in relationLegend" :key="relation" :data-node-relation="relation">{{ label }}</li>
+  </ul>` },
   'get-hierarchy': { script: 'const hierarchy = ref<unknown>(null)', template: '<button @click="hierarchy = chart?.getHierarchy(true)">Get hierarchy</button>\n  <pre>{{ JSON.stringify(hierarchy, null, 2) }}</pre>' },
   'get-flat-datasource': { script: 'const records = ref<unknown>([])', template: '<button @click="records = chart?.getFlatDatasource()">Get flat datasource</button>\n  <pre>{{ JSON.stringify(records, null, 2) }}</pre>' },
 }
@@ -72,6 +108,10 @@ const data = shallowRef(list)`
     }))
   }))
 })`
+  } else if (id === 'reload-data') {
+    extraImports.push("import reloadDatasources from './data.json'")
+    dataCode = 'const data = shallowRef<Datasource>(structuredClone(reloadDatasources[0]!))'
+    files.push({ name: 'data.json', language: 'json', code: JSON.stringify(reloadDatasources, null, 2) })
   } else {
     extraImports.push("import initialData from './data.json'")
     const flatFamily = id === 'family-tree-with-flat-datasource'
@@ -89,18 +129,38 @@ const data = shallowRef(list)`
 
   const action = actions[id]
   if (action) { setup.push(action.script); if (action.template) controls.push(action.template); if (action.event) attributes.push(action.event) }
+  if (id === 'report-path' || id === 'get-related-nodes') {
+    imports.push('watchPostEffect')
+    extraImports.push(id === 'report-path' ? "import { markReportingPath } from './demo-highlights'" : "import { markRelatedNodes, relationLegend } from './demo-highlights'")
+    files.push({ name: 'demo-highlights.ts', language: 'ts', code: highlightSource })
+  }
+  if (id === 'report-path') styles.push(
+    '.demo-report-active .node[data-report-path] .title { background: #9b450b; }',
+    '.demo-report-active .oc-connections path[data-report-path] { stroke: #9b450b; stroke-width: 3; }',
+    '.demo-report-active .node:not([data-report-path]) > :is(.title, .content), .demo-report-active .oc-connections path:not([data-report-path]) { opacity: .45; }',
+  )
+  if (id === 'get-related-nodes') styles.push(
+    '.relation-legend { display: flex; flex-wrap: wrap; gap: 12px; padding: 0; list-style: none; }',
+    '.relation-legend li::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 5px; background: var(--demo-relation-color); }',
+    '[data-node-relation=parent] { --demo-relation-color: #305b93; }',
+    '[data-node-relation=children] { --demo-relation-color: #9b450b; }',
+    '[data-node-relation=siblings] { --demo-relation-color: #765283; }',
+    '.demo-chart .node[data-node-relation] > .title { background: var(--demo-relation-color); }',
+  )
   if (id.startsWith('edit-')) {
+    imports.push('computed')
     setup.push(`const selectedId = ref<string | number | null>(null)
-const name = ref('New colleague')
-const title = ref('Engineer')
+const drafts = ref([{ name: 'New colleague', title: 'Engineer' }])
+const validDrafts = computed(() => drafts.value.filter(draft => draft.name.trim()))
+function resetDrafts() { drafts.value = [{ name: 'New colleague', title: 'Engineer' }] }
 const moveTarget = ref('')
 let sequence = 0
 function add(relation: 'children' | 'siblings' | 'parent') {
-  if (selectedId.value == null) return
-  const node = { id: \`new-\${++sequence}\`, name: name.value, title: title.value }
-  if (relation === 'parent') chart.value?.addParent(selectedId.value, node)
-  else if (relation === 'siblings') chart.value?.addSiblings(selectedId.value, [node])
-  else chart.value?.addChildren(selectedId.value, [node])
+  if (selectedId.value == null || !validDrafts.value.length || (relation === 'parent' && validDrafts.value.length !== 1)) return
+  const nodes = validDrafts.value.map(draft => ({ id: \`new-\${++sequence}\`, name: draft.name.trim(), title: draft.title.trim() }))
+  if (relation === 'parent') chart.value?.addParent(selectedId.value, nodes[0]!)
+  else if (relation === 'siblings') chart.value?.addSiblings(selectedId.value, nodes)
+  else chart.value?.addChildren(selectedId.value, nodes)
 }
 function remove() {
   if (selectedId.value == null) return
@@ -108,11 +168,16 @@ function remove() {
   selectedId.value = null
 }`)
     attributes.push('@node-click="selectedId = $event.id ?? null"')
-    controls.push(`<input v-model="name" aria-label="New node name" />
-  <input v-model="title" aria-label="New node title" />
-  <button :disabled="selectedId == null" @click="add('children')">Add child</button>
-  <button :disabled="selectedId == null" @click="add('siblings')">Add sibling</button>
-  <button :disabled="selectedId == null" @click="add('parent')">Add parent</button>
+    controls.push(`<div v-for="(draft, index) in drafts" :key="index">
+    <label>Name <input v-model="draft.name" /></label>
+    <label>Title <input v-model="draft.title" /></label>
+    <button v-if="index" @click="drafts.splice(index, 1)">Remove node row {{ index + 1 }}</button>
+  </div>
+  <button @click="drafts.push({ name: '', title: '' })">Add node row</button>
+  <button @click="resetDrafts">Reset node fields</button>
+  <button :disabled="selectedId == null || !validDrafts.length" @click="add('children')">{{ validDrafts.length > 1 ? 'Add children' : 'Add child' }}</button>
+  <button :disabled="selectedId == null || !validDrafts.length" @click="add('siblings')">{{ validDrafts.length > 1 ? 'Add siblings' : 'Add sibling' }}</button>
+  <button :disabled="selectedId == null || validDrafts.length !== 1" @click="add('parent')">Add parent</button>
   <button :disabled="selectedId == null" @click="remove">Remove branch</button>
   <input v-model="moveTarget" aria-label="Move target ID" />
   <button :disabled="selectedId == null || !moveTarget" @click="chart?.moveNode(selectedId!, moveTarget)">Move node</button>`)
@@ -164,6 +229,8 @@ const city = computed(() => selected.value?.city as string | undefined)`)
     files.push({ name: 'GeoMap.vue', language: 'vue', code: mapSource })
   }
 
+  const controlMarkup = controls.length ? '\n  ' + controls.join('\n  ') : ''
+  const toolbarMarkup = action?.toolbar ? '\n  ' + action.toolbar : id === 'reload-data' ? controlMarkup : ''
   const code = `<script setup lang="ts">
 import { ${imports.join(', ')} } from 'vue'
 import OrgChart, { ${chartImports.length ? chartImports.join(', ') + ', ' : ''}type ChartOptions, type Datasource, type OrgChartInstance, type OrgNode } from 'vue-organization-chart'
@@ -178,8 +245,8 @@ ${optionCode}
 }
 ${setup.length ? '\n' + setup.join('\n\n') + '\n' : ''}</script>
 
-<template>
-  <OrgChart ref="chart" :data="data" v-bind="options" class="demo-chart"${attributes.length ? ' ' + attributes.join(' ') : ''}${slot ? '>' + slot + '</OrgChart>' : ' />'}${controls.length ? '\n  ' + controls.join('\n  ') : ''}
+<template>${toolbarMarkup}
+  <OrgChart ref="chart" :data="data" v-bind="options" class="demo-chart"${attributes.length ? ' ' + attributes.join(' ') : ''}${slot ? '>' + slot + '</OrgChart>' : ' />'}${id === 'reload-data' ? '' : controlMarkup}
 </template>`
 
   return [{ name: `${demo.id}.vue`, language: 'vue', code }, ...files, { name: 'demo.css', language: 'css', code: styles.join('\n') }]
